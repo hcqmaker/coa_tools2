@@ -2,6 +2,15 @@
 @tool  # carefull  is a tool need thiss
 extends Window
 
+
+
+"""
+
+carefull need to rename path has [ xxx.png --> xxx_png] the name of path do not have Special characters
+
+
+"""
+
 @onready var file_dest_path: LineEdit = $root/VBoxContainer/to_path/fileDestPath
 @onready var file_src_path: LineEdit = $root/VBoxContainer/from_path/fileSrcPath
 
@@ -16,6 +25,16 @@ var _sprite_count = 0
 
 var _src_path:String = ""
 var _dest_path:String = ""
+
+var _script_path:String = ""
+var _script_data:String = """
+extends Node2D
+
+func handle_events(event_type:String, event_value:String) -> void:
+	print(event_type, event_value)
+	pass
+
+"""
 
 var _node_scene:Node2D = null
 var _skeleton:Skeleton2D = null
@@ -87,6 +106,7 @@ func _do_import(tmp_src:String, tmp_dest:String) -> void:
 	
 	_src_path = tmp_src;
 	_dest_path = tmp_dest;
+	_script_path = _dest_path.replace(".tscn",".gd")
 	
 	## json
 	var json_data:Dictionary = {}
@@ -96,8 +116,11 @@ func _do_import(tmp_src:String, tmp_dest:String) -> void:
 		json_data = JSON.parse_string(json.get_as_text())
 		json.close()
 	
+	_write_gdscript_file(_script_path)
+	
 	var node_2d = Node2D.new()
 	node_2d.name = "Node2D"
+	node_2d.set_script(load(_script_path))
 	
 	var skeletion = Skeleton2D.new()
 	skeletion.name = "Skeleton2D"
@@ -134,6 +157,7 @@ func _do_import(tmp_src:String, tmp_dest:String) -> void:
 	_generate_bones(json_nodes, node_2d, skeletion, tmp_dict_sprite_name2data, is_copy_image)
 	_import_animations(json_anims, node_2d)
 		
+	
 	var scene = PackedScene.new()
 	scene.pack(node_2d)
 	ResourceSaver.save(scene, _dest_path)
@@ -247,7 +271,7 @@ func _generate_bones(nodes:Array, parent:Node2D, subparent:Node2D, mesh_dict:Dic
 			
 			for tmp_weight in new_weights:
 				var tmp_bone_name:String = tmp_weight["name"];
-				var node_path:String = tmp_weight["node_path"];
+				var node_path:String = _convert_to(tmp_weight["node_path"]);
 				var tmp_u_weight:Array = tmp_weight["weight"];
 				new_polygon.add_bone(node_path, tmp_u_weight);
 				#new_polygon.add_bone(node_path,_convert_to_weight(tmp_u_weight));
@@ -325,55 +349,99 @@ func _import_animations(animations:Array, owner:Node2D) -> void:
 		# TODO 创建设置初始值 RESET  应该如何设置
 		if (anim_name == "Restpose"): # RESET
 			anim_name = "RESET"
-			pass
-		##  TODO 设置为全局动画？？？？
+
 		var anim_data = Animation.new()
 		anim_data.loop_mode = false;
 		anim_data.set_length(anim_length)
 		
-		for key:String in anim["keyframes"]:
-			var track_dict = anim["keyframes"][key]
+		var tmp_keyframes:Dictionary = anim["keyframes"]
+		for key:String in tmp_keyframes:
+			var track_dict = tmp_keyframes[key]
 			var idx = anim_data.add_track(Animation.TYPE_VALUE)
 			#var idx = anim_data.add_track(Animation.TYPE_BEZIER)
 			
 			if key.contains(":transform/pos"):
 				var path:String = key.replace(":transform/pos", ":position")
-				anim_data.track_set_path(idx, _base_path + path)
+				anim_data.track_set_path(idx, _convert_to(_base_path + path))
 				for time in track_dict:
 					var value = track_dict[time]["value"]
 					anim_data.track_insert_key(idx, float(time),Vector2(value[0],value[1]))
 			elif key.contains(":transform/scale"):
 				var path:String = key.replace(":transform/scale", ":scale")
-				anim_data.track_set_path(idx, _base_path + path)
+				anim_data.track_set_path(idx, _convert_to(_base_path + path))
 				for time in track_dict:
 					var value = track_dict[time]["value"]
 					anim_data.track_insert_key(idx,float(time),Vector2(value[0],value[1]))
-			elif key.contains("modulate"):
-				anim_data.track_set_path(idx,_base_path +  key)
+			elif key.contains(":modulate"):
+				var path:String = key.replace(":modulate", ":color")
+				anim_data.track_set_path(idx,_convert_to(_base_path +  path))
 				for time in track_dict:
 					var value = track_dict[time]["value"]
 					anim_data.track_insert_key(idx,float(time),Color(value[0],value[1],value[2],1.0))
 			elif key.contains(":transform/rot"):
 				var path:String = key.replace(":transform/rot", ":rotation")
-				anim_data.track_set_path(idx, _base_path + path)
+				anim_data.track_set_path(idx, _convert_to(_base_path + path))
 				for time in track_dict:
 					var value = track_dict[time]["value"]
-					anim_data.track_insert_key(idx,float(time),rad_to_deg(value))
-			elif key.contains(":frame") or key.contains(":z/z"):
-				anim_data.track_set_path(idx, _base_path + key)
-				anim_data.track_set_interpolation_type(idx, Animation.INTERPOLATION_NEAREST)
+					anim_data.track_insert_key(idx,float(time), float(value))
+			#elif key.contains(":frame"):
+				## TODO
+				#pass
+			elif key.contains(":z/z"):
+				var path:String = key.replace(":z/z", ":z_index")
+				anim_data.track_set_path(idx, _convert_to(_base_path + path))
+				for time in track_dict:
+					var value = track_dict[time]["value"]
+					anim_data.track_insert_key(idx, float(time), int(value))
+			elif key.contains(":visibility/opacity"):
+				var path:String = key.replace(":visibility/opacity", ":color:alpha")
+				anim_data.track_set_path(idx, _convert_to(_base_path + path))
+				for time in track_dict:
+					var value = track_dict[time]["value"]
+					anim_data.track_insert_key(idx, float(time), float(value))
 			else:
-				anim_data.track_set_path(idx, _base_path + key)
+				anim_data.track_set_path(idx, _convert_to(_base_path + key))
 				anim_data.track_set_interpolation_type(idx, Animation.INTERPOLATION_LINEAR)
 			
+		var tmp_events:Dictionary = anim["events"];
+		if (tmp_events and not tmp_events.is_empty()):
+			for events_time_key:String in tmp_events:
+				var events_data = tmp_events[events_time_key];
+				for event_data in events_data:
+					var idx = anim_data.add_track(Animation.TYPE_METHOD)
+					anim_data.track_set_path(idx, ".")
+					var event_type:String = event_data["type"]
+					var event_value:String = event_data["value"];
+					var method_var = {
+						"method":"handle_events",
+						"args":[event_type, event_value]
+					}
+					anim_data.track_insert_key(idx, float(events_time_key), method_var)
+				pass
 		anim_lib.add_animation(anim_name, anim_data)
 		
-	var anim_library_name:String = "animations"
+	var anim_library_name:String = ""  ###
+	#var anim_library_name:String = "animations"
 	anim_player.add_animation_library(anim_library_name, anim_lib)
+	
 	
 
 
 ###----------------------------------------------------------
+
+func _convert_to(path:String) -> String:
+	return path.replace(".","_");
+
+func _rad_to_deg(v:float) -> float:
+	
+	return rad_to_deg(v)
+
+func _write_gdscript_file(path:String) -> void:
+	var file:FileAccess = FileAccess.open(path,FileAccess.WRITE)
+	file.store_string(_script_data)
+	file.close()
+	pass
+	
 func _get_path_to_skeleton(node_path:String) -> String:
 	var num:int = node_path.get_slice_count("/");
 	var rs:String = ".."

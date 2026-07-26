@@ -965,6 +965,21 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
 
         return export_channels
 
+    def get_timeline_events(self, anim_collection, frame_time):
+        timelines_dict = OrderedDict()
+        
+        for timeline_event in anim_collection.timeline_events:
+            frame = timeline_event.frame
+            event_array = []
+            for event in timeline_event.event:
+                event_dict = OrderedDict()
+                event_dict["type"] = event.type
+                event_dict["value"] = event.value
+                event_array.append(event_dict)
+
+            timelines_dict[str(frame * frame_time)] = event_array
+        return timelines_dict
+
     def execute(self, context):
         self.scale_multiplier = round(
             1 / get_addon_prefs(context).sprite_import_export_scale, 4
@@ -1091,9 +1106,17 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
                                 anim_collection.frame_start, anim_collection.frame_end
                             )
                         # channels = self.get_action_data(anim_collection.frame_start,anim_collection.frame_end)
+                        
                         for key in channels:
                             all_channels[key] = channels[key]
                         animation["keyframes"] = channels
+
+                        # timeline events
+                        animation["events"] = []
+                        frame_time = 1.0 / context.scene.render.fps 
+                        timeline_events = self.get_timeline_events(anim_collection, frame_time)
+                        animation["events"] = timeline_events
+
                         self.export_dict["animations"].append(animation)
 
             if len(anim_collections) > 1:
