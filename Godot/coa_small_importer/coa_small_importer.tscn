@@ -1,0 +1,96 @@
+[gd_scene format=3 uid="uid://dgd3ay7oy5gin"]
+
+[ext_resource type="Script" uid="uid://xwxb4rsy7ya0" path="res://addons/coa_small_importer/coa_small_importer.gd" id="1_dug8m"]
+
+[node name="Window" type="Window" unique_id=1954226771]
+oversampling_override = 1.0
+title = "Import COA small From Json"
+position = Vector2i(0, 36)
+size = Vector2i(966, 535)
+script = ExtResource("1_dug8m")
+
+[node name="root" type="Control" parent="." unique_id=219358492]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="root" unique_id=1946956537]
+layout_mode = 0
+offset_left = 16.0
+offset_right = 957.0
+offset_bottom = 516.0
+
+[node name="from_path" type="HBoxContainer" parent="root/VBoxContainer" unique_id=1252266945]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="root/VBoxContainer/from_path" unique_id=996345927]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+text = "mport Json Path:"
+
+[node name="fileSrcPath" type="LineEdit" parent="root/VBoxContainer/from_path" unique_id=491865558]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "D:\\tmp\\tmp_samples\\output\\test_mesh_out_01.json"
+
+[node name="btnFromPath" type="Button" parent="root/VBoxContainer/from_path" unique_id=1814712191]
+layout_mode = 2
+text = "select"
+
+[node name="to_path" type="HBoxContainer" parent="root/VBoxContainer" unique_id=1349010328]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="root/VBoxContainer/to_path" unique_id=219618136]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+text = "Save Path"
+
+[node name="fileDestPath" type="LineEdit" parent="root/VBoxContainer/to_path" unique_id=1366728075]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "res://tests/tree_01.tscn"
+
+[node name="btnToPath" type="Button" parent="root/VBoxContainer/to_path" unique_id=764486218]
+layout_mode = 2
+text = "select"
+
+[node name="log" type="RichTextLabel" parent="root/VBoxContainer" unique_id=1622980592]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="HBoxContainer" type="HBoxContainer" parent="root/VBoxContainer" unique_id=1034018265]
+custom_minimum_size = Vector2(100, 60)
+layout_mode = 2
+alignment = 1
+
+[node name="btnImport" type="Button" parent="root/VBoxContainer/HBoxContainer" unique_id=50256887]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+text = "import"
+
+[node name="btnCancel" type="Button" parent="root/VBoxContainer/HBoxContainer" unique_id=2130901388]
+custom_minimum_size = Vector2(100, 0)
+layout_mode = 2
+text = "Cancel"
+
+[node name="dlg_from" type="EditorFileDialog" parent="." unique_id=220930872]
+title = "Open a File"
+ok_button_text = "Import"
+file_mode = 0
+access = 2
+filters = PackedStringArray("*.json")
+
+[node name="dlg_to" type="EditorFileDialog" parent="." unique_id=1859937877]
+filters = PackedStringArray("*.tscn")
+
+[node name="dlg_warning" type="ConfirmationDialog" parent="." unique_id=1286083119]
+title = "Warning Info"
+
+[connection signal="close_requested" from="." to="." method="_on_close_requested"]
+[connection signal="pressed" from="root/VBoxContainer/from_path/btnFromPath" to="." method="_on_btn_from_path_pressed"]
+[connection signal="pressed" from="root/VBoxContainer/to_path/btnToPath" to="." method="_on_btn_to_path_pressed"]
+[connection signal="pressed" from="root/VBoxContainer/HBoxContainer/btnImport" to="." method="_on_btn_import_pressed"]
+[connection signal="pressed" from="root/VBoxContainer/HBoxContainer/btnCancel" to="." method="_on_btn_cancel_pressed"]
+[connection signal="file_selected" from="dlg_from" to="." method="_on_dlg_from_file_selected"]
+[connection signal="file_selected" from="dlg_to" to="." method="_on_dlg_to_file_selected"]

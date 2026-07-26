@@ -295,6 +295,8 @@ class COATOOLS2_OT_AddAnimationCollection(bpy.types.Operator):
                 if anim.name in action.name:
                     already_used_actions.append(action)
 
+        ## 这里是有问题的，在 blender 5.1 的情况下，如果有slot这样的会出现找不到的情况，神奇了，不是知道是后面的rename出现的问题还是什么
+        ## 应该是
         for action in bpy.data.actions:
             if action not in already_used_actions:
                 i += 1
@@ -378,12 +380,13 @@ class COATOOLS2_OT_AddAnimationCollection(bpy.types.Operator):
                 assign_action(child, action)
 
     def rename_actions(self, action_name):
-        for action in bpy.data.actions:
-            if action.name == action_name:
-                action.name = action_name + "_" + self.armature.name
+        # for action in bpy.data.actions:
+        #     if action.name == action_name:
+        #         action.name = action_name + "_" + self.armature.name
         self.sprite_object.coa_tools2.anim_collections_index = (
             len(self.sprite_object.coa_tools2.anim_collections) - 1
         )
+        pass
 
     def invoke(self, context, event):
         self.sprite_object = get_sprite_object(context.active_object)

@@ -438,7 +438,9 @@ class COATOOLS2_OT_ExportToJson(bpy.types.Operator, bpy_extras.io_utils.ExportHe
         dict_bone["name"] = bone.name
         dict_bone["type"] = "BONE"
         dict_bone["node_path"] = str(self.get_node_path(bone, []))  # ,suffix=""))
-        dict_bone["draw_bone"] = self.armature.data.bones[bone.name].coa_draw_bone
+        # dict_bone["draw_bone"] = self.armature.data.bones[bone.name].coa_draw_bone
+        tmp_bone = self.armature.data.bones[bone.name]
+        if (tmp_bone.get("coa_draw_bone")): dict_bone["draw_bone"] = tmp_bone.get("coa_draw_bone")# self.armature.data.bones[bone.name].coa_draw_bone
         dict_bone["bone_connected"] = bone.use_connect
         dict_bone["position"] = self.get_relative_bone_pos(bone, "HEAD")
         dict_bone["position_tip"] = self.get_relative_bone_pos(bone, "TAIL")

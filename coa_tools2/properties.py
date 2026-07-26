@@ -416,6 +416,7 @@ class AnimationCollections(bpy.types.PropertyGroup):
             objs.append(child)
 
         for child in objs:
+            ## bug 一些东西这么处理有错了
             action_name = self.name_old + "_" + child.name
             action_name_new = self.name + "_" + child.name
 
@@ -424,8 +425,11 @@ class AnimationCollections(bpy.types.PropertyGroup):
             if action_name_new in bpy.data.actions:
                 print(child.name,"",action_name_new , " -- ",action_name_new in bpy.data.actions)
             if action_name_new not in bpy.data.actions and action_name in bpy.data.actions:
-                action = bpy.data.actions[action_name]
-                action.name = action_name_new
+                # action = bpy.data.actions[action_name]
+                # action.name = action_name_new
+                pass
+            ### TODO 这里改动了原来的名字是可能出问题的
+
         self.name_old = self.name
         self.id_data.coa_tools2.anim_collections_index = self.id_data.coa_tools2.anim_collections_index
 

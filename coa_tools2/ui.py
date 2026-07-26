@@ -663,7 +663,13 @@ class COATOOLS2_PT_Tools(bpy.types.Panel):
                         icon="EXPORT",
                         emboss=True,
                     )
-
+                    row = layout.row(align=True)
+                    row.operator(
+                        "coa_tools2.export_to_godot_json",
+                        text="Export godot 4.7 json",
+                        icon="EXPORT",
+                        emboss=True,
+                    )
                     row = layout.row(align=True)
                     row.operator(
                         "coa_tools2.create_slot_object",

@@ -21,13 +21,13 @@ Created by Aodaruma
 bl_info = {
     "name": "COA Tools2",
     "description": "This Addon provides a Toolset for a 2D Animation Workflow.",
-    "author": "Aodaruma",
-    "version": (2, 2, 1),
-    "blender": (5, 0, 0),
+    "author": "hcqmaker",
+    "version": (2, 3, 1),
+    "blender": (5, 1, 0),
     "location": "View 3D > Tools > Cutout Animation Tools",
     "warning": "",
-    "wiki_url": "https://github.com/aodaruma/coa_tools2/wiki",
-    "tracker_url": "https://github.com/aodaruma/coa_tools2/issues",
+    "wiki_url": "https://github.com/hcqmaker/coa_tools2/wiki",
+    "tracker_url": "https://github.com/hcqmaker/coa_tools2/issues",
     "category": "Animation",
 }
 
@@ -78,8 +78,8 @@ from .operators import version_converter
 from .operators import change_alpha_mode
 from .operators import convert_from_old
 from .operators import copy_mesh_data
+from .operators import export_godot_json
 from .operators import export_json
-
 from .operators.exporter import export_dragonbones
 from .operators.exporter import export_creature
 
@@ -280,6 +280,7 @@ classes = (
     export_dragonbones.COATOOLS2_PT_ExportPanel,
     export_creature.COATOOLS2_OT_CreatureExport,
     export_json.COATOOLS2_OT_ExportToJson,
+    export_godot_json.COATOOLS2_OT_ExportToGodotJson,
 )
 
 addon_keymaps = []
@@ -442,8 +443,8 @@ def register():
     if info is None:
         info = {
             "name": "COA Tools2",
-            "version": (2, 2, 1),
-            "blender": (5, 0, 0),
+            "version": (2, 3, 1),
+            "blender": (5, 1, 0),
         }
     addon_updater_ops.register(info)
 

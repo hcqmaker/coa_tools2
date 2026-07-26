@@ -20,6 +20,12 @@ import bpy
 from bpy.app.handlers import persistent
 import os
 
+updater_engine = "Github"
+updater_user = "hcqmaker"
+updater_repo = "coa_tools2"
+updater_website = "https://github.com/hcqmaker/coa_tools2"
+updater_subfolder_path = "Blender/coa_tools2"
+
 # updater import, import safely
 # Prevents popups for users with invalid python installs e.g. missing libraries
 try:
@@ -1012,7 +1018,8 @@ def register(bl_info):
     # print("Running updater reg")
 
     # confirm your updater "engine" (Github is default if not specified)
-    updater.engine = "Github"
+    updater.engine = updater_engine
+    # updater.engine = "Github"
     # updater.engine = "GitLab"
     # updater.engine = "Bitbucket"
 
@@ -1024,18 +1031,22 @@ def register(bl_info):
     updater.private_token = None  # "tokenstring"
 
     # choose your own username, must match website (not needed for GitLab)
-    updater.user = "aodaruma"
+    updater.user = updater_user
+    # updater.user = "aodaruma"
 
     # choose your own repository, must match git name
-    updater.repo = "coa_tools2"
+    updater.repo = updater_repo
+    # updater.repo = "coa_tools2"
 
     # updater.addon = # define at top of module, MUST be done first
 
     # Website for manual addon download, optional but recommended to set
-    updater.website = "https://github.com/Aodaruma/coa_tools2"
+    updater.website =  updater_website
+    # updater.website = "https://github.com/Aodaruma/coa_tools2"
 
     # Addon subfolder path
-    updater.subfolder_path = "Blender/coa_tools2"
+    updater.subfolder_path = updater_subfolder_path
+    # updater.subfolder_path = "Blender/coa_tools2"
 
     # used to check/compare versions
     updater.current_version = bl_info["version"]

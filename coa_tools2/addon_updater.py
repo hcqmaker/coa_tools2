@@ -558,6 +558,8 @@ class Singleton_updater(object):
 
         # get all tags, internet call
         all_tags = self._engine.parse_tags(self.get_api(request), self)
+        if (not all_tags):
+            return
         self._prefiltered_tag_count = len(all_tags)
 
         # pre-process to skip tags

@@ -9,6 +9,7 @@ from ..functions import b_version_bigger_than
 from ..bgl_compat import bgl
 
 
+
 class COATOOLS2_OT_ShowHelp(bpy.types.Operator):
     bl_idname = "coa_tools2.show_help"
     bl_label = "Show Help"

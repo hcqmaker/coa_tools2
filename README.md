@@ -3,8 +3,9 @@
 # COA tools 2
 
 the Addon of Cutout Animation Tools for Blender, which allows you to create cutout animations in Blender.
-
-[![GitHub release](https://img.shields.io/github/release/Aodaruma/coa_tools2.svg)](https://github.com/Aodaruma/coa_tools2/releases) [![Discord](https://img.shields.io/badge/Discord-fff.svg?logo=discord&style=social)](https://discord.gg/5vhZmCXczr)
+<!--
+[![GitHub release](https://img.shields.io/github/release/Aodaruma/coa_tools2.svg)](https://github.com/hcqmaker/coa_tools2/releases) 
+-->
 
 ## Table of Contents
 
@@ -23,7 +24,7 @@ the Addon of Cutout Animation Tools for Blender, which allows you to create cuto
 
 ## Description
 
-COA Tools 2 is an add-on developed by [ndee89](https://github.com/ndee85) and modified/remade by Aodaruma, which enables 2D rigging and animation within Blender.
+COA Tools 2 is an add-on developed by [ndee89](https://github.com/ndee85) and modified/remade by [Aodaruma](https://github.com/Aodaruma/coa_tools2),hcqmaker which enables 2D rigging and animation within Blender.
 
 [The original COA Tools by ndee89](https://github.com/ndee85/coa_tools) provided a rapid workflow for creating 2D cutout characters/animations in Blender. With COA Tools 2, the goal is to support Blender 3.4 and above, introduce automatic mesh generation, and establish a workflow with minimal features, allowing direct editing without going through proprietary modes.
 
