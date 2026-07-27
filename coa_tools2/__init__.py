@@ -23,7 +23,7 @@ bl_info = {
     "description": "This Addon provides a Toolset for a 2D Animation Workflow.",
     "author": "hcqmaker",
     "version": (2, 3, 1),
-    "blender": (5, 1, 0),
+    "blender": (5, 1, 2),
     "location": "View 3D > Tools > Cutout Animation Tools",
     "warning": "",
     "wiki_url": "https://github.com/hcqmaker/coa_tools2/wiki",
@@ -105,7 +105,7 @@ class COATools2Preferences(bpy.types.AddonPreferences):
     enable_updater: bpy.props.BoolProperty(
         name="Enable Updater",
         description="If enabled, an update notification will appear when a new version is available",
-        default=True,
+        default=False,
     )
     auto_check_update: bpy.props.BoolProperty(
         name="Auto-check for Update",
@@ -444,7 +444,7 @@ def register():
         info = {
             "name": "COA Tools2",
             "version": (2, 3, 1),
-            "blender": (5, 1, 0),
+            "blender": (5, 1, 2),
         }
     addon_updater_ops.register(info)
 

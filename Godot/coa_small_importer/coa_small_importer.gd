@@ -19,6 +19,18 @@ carefull need to rename path has [ xxx.png --> xxx_png] the name of path do not 
 @onready var dlg_from: EditorFileDialog = $dlg_from
 @onready var dlg_to: EditorFileDialog = $dlg_to
 @onready var dlg_warning: ConfirmationDialog = $dlg_warning
+
+"""
+Warning!!!! godot not do AtlasTexture well in  Polygon2D, if you want use , Need to
+calculate the uv for yourself 
+
+警告！！！ godot没有对AtlasTexture对 Polygon2D, 很好的设置，如果你想使用，需要自己重新计算UV坐标
+
+"""
+##### Warning godot not do AtlasTexture well in  Polygon2D, if you want use , Need to
+##### calculate the uv for yourself 
+#####
+#####
 @onready var cb_use_atlas: CheckBox = $root/VBoxContainer/checkbox/cbUseAtlas
 
 var _bone_count:int = 0
@@ -41,6 +53,7 @@ func handle_events(event_type:String, event_value:String) -> void:
 var _node_scene:Node2D = null
 var _skeleton:Skeleton2D = null
 var _base_path:String = ""
+var _texture2d:Texture2D = null;
 var _atlas_dict:Dictionary = {}
 
 #region
@@ -154,13 +167,17 @@ func _do_import(tmp_src:String, tmp_dest:String) -> void:
 	# wait for copy image to dest path 
 	if (is_copy_image):
 		if cb_use_atlas.button_pressed:
-			_read_and_copy_atlas(_atlas_dict, _src_path, _dest_path)
+			_copy_atlas_png(_src_path, _dest_path)
 		else:
 			_copy_sprites(tmp_dict_sprite_name2data, _src_path, _dest_path)
-			filesystem.scan();
-			await _await_filesystem_scan()
-			await get_tree().create_timer(1).timeout
-	
+
+		filesystem.scan();
+		await _await_filesystem_scan()
+		await get_tree().create_timer(1).timeout
+		
+		if cb_use_atlas.button_pressed:
+			_read_atlas(_atlas_dict, _src_path, _dest_path)
+		
 	_generate_bones(json_nodes, node_2d, skeletion, tmp_dict_sprite_name2data, is_copy_image)
 	_import_animations(json_anims, node_2d)
 		
@@ -202,34 +219,34 @@ func _copy_sprites(sprite_dict:Dictionary, src_path:String, dest_path:String) ->
 				var _dst = str(sprite_dir_path,"/",node["resource_path"])
 				dir.copy(_src,_dst)
 
-
-func _read_and_copy_atlas(atlas_dict:Dictionary ,src_path:String, dest_path:String) -> void:
+func _copy_atlas_png(src_path:String, dest_path:String) -> void:
 	var image_path:String = src_path.replace(_ext_json, ".png")
-	var atlas_tpsheet:String = src_path.replace(_ext_json, ".tpsheet")
-	
+
 	# copy image
 	var dir = DirAccess.open("res://")
-	var sprite_dir_path = dest_path.get_base_dir()
-	var image_dest:String = sprite_dir_path + "/" + image_path.get_file()
+	var image_dest:String = dest_path.get_base_dir() + "/" + image_path.get_file()
 	dir.copy(image_path, image_dest)
+	
+func _read_atlas(atlas_dict:Dictionary ,src_path:String, dest_path:String) -> void:
+	var atlas_tpsheet:String = src_path.replace(_ext_json, ".tpsheet")
+	var image_path:String = src_path.replace(_ext_json, ".png")
+	var image_dest:String = dest_path.get_base_dir() + "/" + image_path.get_file()
 	
 	if (FileAccess.file_exists(atlas_tpsheet)):
 		var file:FileAccess = FileAccess.open(atlas_tpsheet,FileAccess.READ)
 		var json = JSON.parse_string(file.get_as_text())
 		file.close()
 		
-		var texture:Texture2D = load(image_dest)
+		_texture2d = load(image_dest)
 		for tmp_texture in json["textures"]:
 			var sprites = tmp_texture["sprites"]
 			for sprite in sprites:
 				var sprite_filename:String = sprite["filename"]
 				var tmp_region = sprite["region"]
 				var tmp_margin = sprite["margin"]
-				var atlas_texture:AtlasTexture = AtlasTexture.new();
-				atlas_texture.atlas = texture
-				atlas_texture.region = _convert_rect(tmp_region)
-				atlas_texture.margin = _convert_rect(tmp_margin)
-				atlas_dict[sprite_filename] = atlas_texture;
+				
+				atlas_dict[sprite_filename] = {"r":tmp_region,"m":tmp_margin}
+				print(sprite_filename);
 	
 	pass
 	
@@ -292,22 +309,25 @@ func _generate_bones(nodes:Array, parent:Node2D, subparent:Node2D, mesh_dict:Dic
 			var new_vertices:Array = mesh_node["vertices"]
 			var new_polygons:Array = mesh_node["polygons"]
 			var new_weights:Array = mesh_node["weights"]
+			var new_resource_path:String = node["resource_path"]
 			
 			#print("i:",i, " name:", new_name)
 			var new_polygon:Polygon2D = Polygon2D.new()
 			if copy_images:
 				if cb_use_atlas.button_pressed:
-					var new_resource_path:String = node["resource_path"]
-					var atlas_texture:AtlasTexture = _atlas_dict[new_resource_path]
-					new_polygon.set_texure(atlas_texture)
+					#var atlas_texture:AtlasTexture = _atlas_dict[new_resource_path]
+					#new_polygon.texture = atlas_texture
+					new_polygon.texture = _texture2d;
 				else:
 					if tmp_src_path != "":
 						var sprite_dest_path = str(tmp_dest_path.get_base_dir(),"/",node["resource_path"])
 						if dir.file_exists(sprite_dest_path):
 							### set sprite texture
-							new_polygon.set_texture(load(sprite_dest_path))
-						
-			new_polygon.uv = _convert_to_uv(new_uv);
+							new_polygon.texture = load(sprite_dest_path)
+			if cb_use_atlas.button_pressed:
+				new_polygon.uv = _convert_to_atlas_uv(new_uv, new_resource_path);
+			else:
+				new_polygon.uv = _convert_to_uv(new_uv);
 			new_polygon.polygon = _convert_to_polyon(new_vertices);
 			new_polygon.polygons = _convert_to_polyons(new_polygons);
 			
@@ -499,6 +519,20 @@ func _convert_to_polyon(src:Array) -> PackedVector2Array:
 	var rs:PackedVector2Array = PackedVector2Array()
 	for i in range(0, len(src), 2):
 		rs.append(Vector2(src[i], src[i+1]));
+	return rs;
+	
+func _convert_to_atlas_uv(src:Array, resource_path:String) -> PackedVector2Array:
+	var atlas_info:Dictionary = _atlas_dict[resource_path]
+	var region:Dictionary = atlas_info["r"]
+	var margin:Dictionary = atlas_info["m"]
+	
+	var px:float = region["x"];
+	var py:float = region["y"]
+	# FIXME Warning I do nothing for margin
+	#### Warning
+	var rs:PackedVector2Array = PackedVector2Array()
+	for i in range(0, len(src), 2):
+		rs.append(Vector2(src[i] + px, src[i+1] + py));
 	return rs;
 	
 func _convert_to_uv(src:Array) -> PackedVector2Array:
