@@ -49,7 +49,7 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
     bl_options = {"REGISTER"}
 
     # ExportHelper mixin class uses this
-    filename_ext = ".json"
+    filename_ext = ".gjson"
 
     filter_glob: StringProperty(
         default="*.json",
@@ -337,6 +337,36 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
         degrees = round(math.degrees(bone_euler_rot.y), 2)
         return -math.radians(degrees)
 
+    def get_bone_transformation111(self, bone):
+        context = bpy.context
+        pose_bone = self.armature.pose.bones[bone.name]
+
+        edit_bone_matrix = self.edit_bone_matrices[bone.name]
+
+        mat_local = pose_bone.matrix
+        print("-- matrix:", edit_bone_matrix, mat_local)
+        scale = mat_local.decompose()[2]
+        scale_mat = Matrix.Identity(4)
+        scale_mat[0][0] = scale[0]
+        scale_mat[1][1] = scale[1]
+        scale_mat[2][2] = scale[2]
+        mat_local = (mat_local @ (edit_bone_matrix @ scale_mat).inverted()) @ scale_mat
+        return mat_local
+    
+    def get_bone_rotation111(self, bone):
+        pose_bone = self.armature.pose.bones[bone.name]
+
+        if bone.parent != None:
+            local_mat = self.get_bone_transformation111(
+                bone.parent
+            ).inverted() * self.get_bone_transformation111(bone)
+        else:
+            local_mat = self.get_bone_transformation111(bone)
+        bone_euler_rot = local_mat.decompose()[1].to_euler()
+
+        degrees = round(math.degrees(bone_euler_rot.y), 2)
+        return -math.radians(degrees)
+    
     def get_relative_mesh_pos(self, parent, obj):
         if isinstance(parent, bpy.types.Bone):
             relative_pos = (
@@ -367,7 +397,9 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
         if not os.path.exists(res_dir_path):
             os.makedirs(res_dir_path)
         if os.path.isfile(img_path):  # and not os.path.isfile(copied_res_path):
-            shutil.copy(img_path, res_dir_path)
+            to_path = os.path.dirname(img_path)
+            if (to_path != self.change_path_slashes(res_dir_path)):
+                shutil.copy(img_path, res_dir_path)
         else:
             original_path = img.filepath
             export_path = os.path.join(res_dir_path, sprite_name)
@@ -860,7 +892,7 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
 
         for f in range(start, end + 1):
             self.f = f
-
+            print("frame:",f)
             for key in channels:
                 obj_name = os.path.basename(key.split(":")[0])
                 track = os.path.basename(key.split(":")[1])
@@ -885,13 +917,14 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
                         bone = self.armature.data.bones[obj_name]
 
                         ### bone transformations
+                        # TODO a bug need to do, when not add animation and I to addkeyframe will happy
+                        # if (key == "Root:transform/rot"):
+                        # # print(key, " pos:",self.get_relative_bone_pos(bone, "HEAD"))
+                        #     print(key, " rot:",self.get_bone_rotation111(bone))
+                        # print(key, " scale:",self.get_bone_scale(bone))
 
                         self.keyframe_to_dict(
-                            track,
-                            "pos",
-                            self.get_relative_bone_pos(bone, "HEAD"),
-                            channels,
-                            key,
+                            track, "pos", self.get_relative_bone_pos(bone, "HEAD"), channels,  key,
                         )
                         self.keyframe_to_dict(
                             track, "rot", self.get_bone_rotation(bone), channels, key
@@ -1102,6 +1135,7 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
                             )
                             self.armature.data.pose_position = "POSE"
                         else:
+                            #print("-------------------frame start----------------",anim_collection.name)
                             channels = self.get_action_data(
                                 anim_collection.frame_start, anim_collection.frame_end
                             )
