@@ -19,10 +19,12 @@ carefull need to rename path has [ xxx.png --> xxx_png] the name of path do not 
 @onready var dlg_from: EditorFileDialog = $dlg_from
 @onready var dlg_to: EditorFileDialog = $dlg_to
 @onready var dlg_warning: ConfirmationDialog = $dlg_warning
+@onready var cb_use_atlas: CheckBox = $root/VBoxContainer/checkbox/cbUseAtlas
 
-var _bone_count = 0
-var _sprite_count = 0
+var _bone_count:int = 0
+var _sprite_count:int = 0
 
+var _ext_json:String = ".gjson"
 var _src_path:String = ""
 var _dest_path:String = ""
 
@@ -39,6 +41,7 @@ func handle_events(event_type:String, event_value:String) -> void:
 var _node_scene:Node2D = null
 var _skeleton:Skeleton2D = null
 var _base_path:String = ""
+var _atlas_dict:Dictionary = {}
 
 #region
 
@@ -107,6 +110,7 @@ func _do_import(tmp_src:String, tmp_dest:String) -> void:
 	_src_path = tmp_src;
 	_dest_path = tmp_dest;
 	_script_path = _dest_path.replace(".tscn",".gd")
+	_atlas_dict = {}
 	
 	## json
 	var json_data:Dictionary = {}
@@ -149,10 +153,13 @@ func _do_import(tmp_src:String, tmp_dest:String) -> void:
 
 	# wait for copy image to dest path 
 	if (is_copy_image):
-		_copy_sprites(tmp_dict_sprite_name2data, _src_path, _dest_path)
-		filesystem.scan();
-		await _await_filesystem_scan()
-		await get_tree().create_timer(1).timeout
+		if cb_use_atlas.button_pressed:
+			_read_and_copy_atlas(_atlas_dict, _src_path, _dest_path)
+		else:
+			_copy_sprites(tmp_dict_sprite_name2data, _src_path, _dest_path)
+			filesystem.scan();
+			await _await_filesystem_scan()
+			await get_tree().create_timer(1).timeout
 	
 	_generate_bones(json_nodes, node_2d, skeletion, tmp_dict_sprite_name2data, is_copy_image)
 	_import_animations(json_anims, node_2d)
@@ -195,7 +202,37 @@ func _copy_sprites(sprite_dict:Dictionary, src_path:String, dest_path:String) ->
 				var _dst = str(sprite_dir_path,"/",node["resource_path"])
 				dir.copy(_src,_dst)
 
-			
+
+func _read_and_copy_atlas(atlas_dict:Dictionary ,src_path:String, dest_path:String) -> void:
+	var image_path:String = src_path.replace(_ext_json, ".png")
+	var atlas_tpsheet:String = src_path.replace(_ext_json, ".tpsheet")
+	
+	# copy image
+	var dir = DirAccess.open("res://")
+	var sprite_dir_path = dest_path.get_base_dir()
+	var image_dest:String = sprite_dir_path + "/" + image_path.get_file()
+	dir.copy(image_path, image_dest)
+	
+	if (FileAccess.file_exists(atlas_tpsheet)):
+		var file:FileAccess = FileAccess.open(atlas_tpsheet,FileAccess.READ)
+		var json = JSON.parse_string(file.get_as_text())
+		file.close()
+		
+		var texture:Texture2D = load(image_dest)
+		for tmp_texture in json["textures"]:
+			var sprites = tmp_texture["sprites"]
+			for sprite in sprites:
+				var sprite_filename:String = sprite["filename"]
+				var tmp_region = sprite["region"]
+				var tmp_margin = sprite["margin"]
+				var atlas_texture:AtlasTexture = AtlasTexture.new();
+				atlas_texture.atlas = texture
+				atlas_texture.region = _convert_rect(tmp_region)
+				atlas_texture.margin = _convert_rect(tmp_margin)
+				atlas_dict[sprite_filename] = atlas_texture;
+	
+	pass
+	
 func _generate_bones(nodes:Array, parent:Node2D, subparent:Node2D, mesh_dict:Dictionary, copy_images:bool = true, i:int = 0):
 	var tmp_src_path:String = _src_path;
 	var tmp_dest_path:String = _dest_path;
@@ -259,11 +296,16 @@ func _generate_bones(nodes:Array, parent:Node2D, subparent:Node2D, mesh_dict:Dic
 			#print("i:",i, " name:", new_name)
 			var new_polygon:Polygon2D = Polygon2D.new()
 			if copy_images:
-				if tmp_src_path != "":
-					var sprite_dest_path = str(tmp_dest_path.get_base_dir(),"/",node["resource_path"])
-					if dir.file_exists(sprite_dest_path):
-						### set sprite texture
-						new_polygon.set_texture(load(sprite_dest_path))
+				if cb_use_atlas.button_pressed:
+					var new_resource_path:String = node["resource_path"]
+					var atlas_texture:AtlasTexture = _atlas_dict[new_resource_path]
+					new_polygon.set_texure(atlas_texture)
+				else:
+					if tmp_src_path != "":
+						var sprite_dest_path = str(tmp_dest_path.get_base_dir(),"/",node["resource_path"])
+						if dir.file_exists(sprite_dest_path):
+							### set sprite texture
+							new_polygon.set_texture(load(sprite_dest_path))
 						
 			new_polygon.uv = _convert_to_uv(new_uv);
 			new_polygon.polygon = _convert_to_polyon(new_vertices);
@@ -428,6 +470,9 @@ func _import_animations(animations:Array, owner:Node2D) -> void:
 
 
 ###----------------------------------------------------------
+
+func _convert_rect(json:Dictionary) -> Rect2:
+	return Rect2(json["x"],json["y"],json["w"],json["h"])
 
 func _convert_to(path:String) -> String:
 	return path.replace(".","_");

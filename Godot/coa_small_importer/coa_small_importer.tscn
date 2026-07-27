@@ -27,12 +27,12 @@ layout_mode = 2
 [node name="Label" type="Label" parent="root/VBoxContainer/from_path" unique_id=996345927]
 custom_minimum_size = Vector2(100, 0)
 layout_mode = 2
-text = "mport Json Path:"
+text = "Import Json Path:"
 
 [node name="fileSrcPath" type="LineEdit" parent="root/VBoxContainer/from_path" unique_id=491865558]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "D:\\tmp\\tmp_samples\\output\\test_mesh_out_01.json"
+text = "D:\\tmp\\tmp_samples\\output\\test_mesh_out_01.gjson"
 
 [node name="btnFromPath" type="Button" parent="root/VBoxContainer/from_path" unique_id=1814712191]
 layout_mode = 2
@@ -54,6 +54,13 @@ text = "res://tests/tree_01.tscn"
 [node name="btnToPath" type="Button" parent="root/VBoxContainer/to_path" unique_id=764486218]
 layout_mode = 2
 text = "select"
+
+[node name="checkbox" type="HBoxContainer" parent="root/VBoxContainer" unique_id=2130085223]
+layout_mode = 2
+
+[node name="cbUseAtlas" type="CheckBox" parent="root/VBoxContainer/checkbox" unique_id=718766758]
+layout_mode = 2
+text = "Use Atlas "
 
 [node name="log" type="RichTextLabel" parent="root/VBoxContainer" unique_id=1622980592]
 layout_mode = 2
@@ -79,7 +86,7 @@ title = "Open a File"
 ok_button_text = "Import"
 file_mode = 0
 access = 2
-filters = PackedStringArray("*.json")
+filters = PackedStringArray("*.gjson")
 
 [node name="dlg_to" type="EditorFileDialog" parent="." unique_id=1859937877]
 filters = PackedStringArray("*.tscn")
