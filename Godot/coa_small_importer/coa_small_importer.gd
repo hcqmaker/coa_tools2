@@ -404,7 +404,7 @@ func _import_animations(animations:Array, owner:Node2D) -> void:
 	for anim in animations:
 		
 		var anim_name:String = anim["name"]
-		var anim_length:int = anim["length"]
+		var anim_length:float = anim["length"]
 		var anim_fps:int = anim["fps"]
 		
 		log_info(str("> ", anim_name,":   length - ", anim_length, "    fps - ", anim_fps))
@@ -414,7 +414,7 @@ func _import_animations(animations:Array, owner:Node2D) -> void:
 
 		var anim_data = Animation.new()
 		anim_data.loop_mode = false;
-		anim_data.set_length(anim_length)
+		anim_data.length = anim_length
 		
 		var tmp_keyframes:Dictionary = anim["keyframes"]
 		for key:String in tmp_keyframes:

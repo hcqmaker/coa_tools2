@@ -52,7 +52,7 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
     filename_ext = ".gjson"
 
     filter_glob: StringProperty(
-        default="*.json",
+        default="*.gjson",
         options={"HIDDEN"},
     )
     export_anims: BoolProperty(
@@ -261,11 +261,27 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
         bpy.ops.object.mode_set(mode=mode)
         context.view_layer.objects.active = active_object
 
+    
+    def get_bone_transformation_old(self, bone):
+        context = bpy.context
+        pose_bone = self.armature.pose.bones[bone.name]
+
+        edit_bone_matrix = (self.edit_bone_matrices[bone.name]).copy()
+
+        mat_local = pose_bone.matrix.copy()
+        scale = mat_local.decompose()[2]
+        scale_mat = Matrix.Identity(4)
+        scale_mat[0][0] = scale[0]
+        scale_mat[1][1] = scale[1]
+        scale_mat[2][2] = scale[2]
+        mat_local = (mat_local @ (edit_bone_matrix @ scale_mat).inverted()) @ scale_mat
+        return mat_local
+
     def get_bone_transformation(self, bone):
         context = bpy.context
         pose_bone = self.armature.pose.bones[bone.name]
 
-        edit_bone_matrix = self.edit_bone_matrices[bone.name]
+        edit_bone_matrix = (self.edit_bone_matrices[bone.name])
 
         mat_local = pose_bone.matrix
         scale = mat_local.decompose()[2]
@@ -276,15 +292,29 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
         mat_local = (mat_local @ (edit_bone_matrix @ scale_mat).inverted()) @ scale_mat
         return mat_local
 
+    def get_pose_bone_scale(self,bone):
+        pose_bone = self.armature.pose.bones[bone.name]
+
+        bone_scale = pose_bone.scale
+        bone_scale_2d = [bone_scale[1], bone_scale[1]]
+        return bone_scale_2d
+
+
     def get_bone_scale(self, bone):
         pose_bone = self.armature.pose.bones[bone.name]
 
-        if bone.parent != None:
-            local_mat = self.get_bone_transformation(
-                bone.parent
-            ).inverted() * self.get_bone_transformation(bone)
-        else:
-            local_mat = self.get_bone_transformation(bone)
+        # if bone.parent != None:
+        #     local_mat = self.get_bone_transformation(
+        #         bone.parent
+        #     ).inverted() * self.get_bone_transformation(bone)
+        # else:
+        #     local_mat = self.get_bone_transformation(bone)
+        tmp_bone = bone
+        local_mat = self.get_bone_transformation(bone)
+        while (tmp_bone.parent != None):
+            parent_mat = self.get_bone_transformation(bone.parent)
+            local_mat = parent_mat.inverted() * local_mat
+            tmp_bone = bone.parent
         bone_scale = local_mat.decompose()[2]
         bone_scale_2d = [bone_scale[1], bone_scale[1]]
         return bone_scale_2d
@@ -326,46 +356,33 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
     def get_bone_rotation(self, bone):
         pose_bone = self.armature.pose.bones[bone.name]
 
-        if bone.parent != None:
-            local_mat = self.get_bone_transformation(
-                bone.parent
-            ).inverted() * self.get_bone_transformation(bone)
-        else:
-            local_mat = self.get_bone_transformation(bone)
+        # if bone.parent != None:
+        #     local_mat = self.get_bone_transformation(
+        #         bone.parent
+        #     ).inverted() * self.get_bone_transformation(bone)
+        # else:
+        #     local_mat = self.get_bone_transformation(bone)
+        tmp_bone = bone
+        local_mat = self.get_bone_transformation(bone)
+        while (tmp_bone.parent != None):
+            parent_mat = self.get_bone_transformation(bone.parent)
+            local_mat = parent_mat.inverted() * local_mat
+            tmp_bone = bone.parent
         bone_euler_rot = local_mat.decompose()[1].to_euler()
 
         degrees = round(math.degrees(bone_euler_rot.y), 2)
         return -math.radians(degrees)
 
-    def get_bone_transformation111(self, bone):
-        context = bpy.context
+    def get_pose_bone_rotation(self, bone):
         pose_bone = self.armature.pose.bones[bone.name]
 
-        edit_bone_matrix = self.edit_bone_matrices[bone.name]
+        bone_euler_rot = pose_bone.rotation_quaternion.to_euler()
+        # if bone.name == "Top":
+        #     print("bone:", bone.name, " ", pose_bone.location,pose_bone.rotation_quaternion,pose_bone.scale)
+        #     print("--->", bone_euler_rot)
 
-        mat_local = pose_bone.matrix
-        print("-- matrix:", edit_bone_matrix, mat_local)
-        scale = mat_local.decompose()[2]
-        scale_mat = Matrix.Identity(4)
-        scale_mat[0][0] = scale[0]
-        scale_mat[1][1] = scale[1]
-        scale_mat[2][2] = scale[2]
-        mat_local = (mat_local @ (edit_bone_matrix @ scale_mat).inverted()) @ scale_mat
-        return mat_local
-    
-    def get_bone_rotation111(self, bone):
-        pose_bone = self.armature.pose.bones[bone.name]
-
-        if bone.parent != None:
-            local_mat = self.get_bone_transformation111(
-                bone.parent
-            ).inverted() * self.get_bone_transformation111(bone)
-        else:
-            local_mat = self.get_bone_transformation111(bone)
-        bone_euler_rot = local_mat.decompose()[1].to_euler()
-
-        degrees = round(math.degrees(bone_euler_rot.y), 2)
-        return -math.radians(degrees)
+        degrees = round(math.degrees(bone_euler_rot.z), 2)
+        return math.radians(degrees)
     
     def get_relative_mesh_pos(self, parent, obj):
         if isinstance(parent, bpy.types.Bone):
@@ -733,6 +750,7 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
         else:
             return False
 
+    
     def get_action_data(self, start, end, restpose=False):
         scene = bpy.context.scene
         self.restpose = restpose
@@ -892,7 +910,7 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
 
         for f in range(start, end + 1):
             self.f = f
-            print("frame:",f)
+            # if (not restpose): print("frame:",f)
             for key in channels:
                 obj_name = os.path.basename(key.split(":")[0])
                 track = os.path.basename(key.split(":")[1])
@@ -917,21 +935,21 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
                         bone = self.armature.data.bones[obj_name]
 
                         ### bone transformations
-                        # TODO a bug need to do, when not add animation and I to addkeyframe will happy
-                        # if (key == "Root:transform/rot"):
-                        # # print(key, " pos:",self.get_relative_bone_pos(bone, "HEAD"))
-                        #     print(key, " rot:",self.get_bone_rotation111(bone))
-                        # print(key, " scale:",self.get_bone_scale(bone))
 
-                        self.keyframe_to_dict(
-                            track, "pos", self.get_relative_bone_pos(bone, "HEAD"), channels,  key,
-                        )
-                        self.keyframe_to_dict(
-                            track, "rot", self.get_bone_rotation(bone), channels, key
-                        )
-                        self.keyframe_to_dict(
-                            track, "scale", self.get_bone_scale(bone), channels, key
-                        )
+                        # if (key == "Root/Top:transform/rot" and not restpose):
+                        #     print("-------------------------------->>>>>------------")
+                        tmp_relative_bone_pos = self.get_relative_bone_pos(bone, "HEAD")
+                        tmp_bone_rotation = self.get_pose_bone_rotation(bone)
+                        tmp_bone_scale = self.get_pose_bone_scale(bone)
+
+                   
+                        # if (key == "Root/Top:transform/rot" and not restpose):
+                        #     print(tmp_bone_rotation)
+                        #     print("-----------------------<<<<<<<---------------------")
+
+                        self.keyframe_to_dict(track, "pos", tmp_relative_bone_pos, channels,  key)
+                        self.keyframe_to_dict(track, "rot", tmp_bone_rotation, channels, key)
+                        self.keyframe_to_dict(track, "scale", tmp_bone_scale, channels, key)
 
                     ### write sprite keyframe data
                     if obj_name in bpy.data.objects:
