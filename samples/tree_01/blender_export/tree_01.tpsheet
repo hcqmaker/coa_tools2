@@ -1,0 +1,63 @@
+{
+	"textures": [
+		{
+			"image": "tree_01.png",
+			"size": {
+				"w": 1887,
+				"h": 1623
+			},
+			"sprites": [
+				{
+					"filename": "sprites/top.png",
+					"region": {
+						"x": 10,
+						"y": 10,
+						"w": 1040,
+						"h": 916
+					},
+					"margin": {
+						"x": 0,
+						"y": 0,
+						"w": 0,
+						"h": 0
+					}
+				},
+				{
+					"filename": "sprites/middle.png",
+					"region": {
+						"x": 1070,
+						"y": 10,
+						"w": 807,
+						"h": 905
+					},
+					"margin": {
+						"x": 0,
+						"y": 0,
+						"w": 0,
+						"h": 0
+					}
+				},
+				{
+					"filename": "sprites/bottom.png",
+					"region": {
+						"x": 10,
+						"y": 946,
+						"w": 155,
+						"h": 667
+					},
+					"margin": {
+						"x": 0,
+						"y": 0,
+						"w": 0,
+						"h": 0
+					}
+				}
+			]
+		}
+	],
+	"meta": {
+		"app": "http://free-tex-packer.com",
+		"version": "0.6.7",
+		"format": "RGBA8888",
+	}
+}
