@@ -604,9 +604,11 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
         )  # ,suffix=sprite))
         dict_sprites["resource_path"] = self.get_sprite_path(sprite)
         dict_sprites["pivot_offset"] = self.get_sprite_offset(sprite)
-        dict_sprites["position"] = self.get_relative_mesh_pos(
-            bone, bpy.data.objects[sprite]
-        )
+        # dict_sprites["position"] = self.get_relative_mesh_pos(
+        #     bone, bpy.data.objects[sprite]
+        # )
+        dict_sprites["position"] = self.get_pose_mesh_pos(bone, bpy.data.objects[sprite])
+
         dict_sprites["rotation"] = self.get_sprite_rotation(sprite)
         dict_sprites["scale"] = self.get_sprite_scale(sprite)
         dict_sprites["opacity"] = self.get_sprite_opacity(sprite)
