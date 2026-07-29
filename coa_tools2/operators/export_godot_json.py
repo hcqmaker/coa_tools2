@@ -312,9 +312,9 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
         tmp_bone = bone
         local_mat = self.get_bone_transformation(bone)
         while (tmp_bone.parent != None):
-            parent_mat = self.get_bone_transformation(bone.parent)
+            parent_mat = self.get_bone_transformation(tmp_bone.parent)
             local_mat = parent_mat.inverted() * local_mat
-            tmp_bone = bone.parent
+            tmp_bone = tmp_bone.parent
         bone_scale = local_mat.decompose()[2]
         bone_scale_2d = [bone_scale[1], bone_scale[1]]
         return bone_scale_2d
@@ -366,10 +366,12 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
         #     local_mat = self.get_bone_transformation(bone)
         tmp_bone = bone
         local_mat = self.get_bone_transformation(bone)
+       
         while (tmp_bone.parent != None):
-            parent_mat = self.get_bone_transformation(bone.parent)
+            parent_mat = self.get_bone_transformation(tmp_bone.parent)
             local_mat = parent_mat.inverted() * local_mat
-            tmp_bone = bone.parent
+            tmp_bone = tmp_bone.parent
+           
         bone_euler_rot = local_mat.decompose()[1].to_euler()
 
         degrees = round(math.degrees(bone_euler_rot.y), 2)
@@ -623,6 +625,7 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
         return dict_sprites
 
     def bone_to_dict(self, bone):
+        
         dict_bone = OrderedDict()
         dict_bone["name"] = bone.name
         dict_bone["type"] = "BONE"
@@ -638,9 +641,11 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
         dict_bone["scale"] = self.get_bone_scale(bone)
         dict_bone["z"] = self.armature.data.bones[bone.name].coa_tools2.z_value
         dict_bone["children"] = []
+        
         return dict_bone
 
     def armature_to_dict(self, bone):
+        
         dict_bone = self.bone_to_dict(bone)
 
         sprites = []
@@ -648,7 +653,7 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
             sprites = self.bone_sprite_constraint[bone.name]
         for sprite in sprites:
             dict_bone["children"].append(self.sprite_to_dict(sprite, bone))
-
+        
         for child in bone.children:
             sprites = []
             if child.name in self.bone_sprite_constraint:
@@ -658,7 +663,7 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
                     dict_bone["children"].append(self.armature_to_dict(child))
             else:
                 dict_bone["children"].append(self.armature_to_dict(child))
-
+        
         return dict_bone
 
     def get_collection_action(self, context, anim_collection):
@@ -976,7 +981,7 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
                                 parent = bpy.data.objects[name]
                         else:
                             parent = self.sprite_object
-
+                        
                         ### sprite transformations and other properties
                         # tmp_relative_mesh_pos = self.get_relative_mesh_pos(parent, bpy.data.objects[sprite])
                         tmp_relative_mesh_pos = self.get_pose_mesh_pos(parent, bpy.data.objects[sprite])
@@ -1052,13 +1057,13 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
                     current_selected_objects.append(obj)
 
         ### start export from here
-
+        
         self.export_dict["name"] = self.sprite_object.name
         self.export_dict["changelog"] = [
             time.strftime("%d/%m/%Y") + " - " + time.strftime("%H:%M:%S")
         ]
 
-
+        
         ### export sprites that are not attached to any armature
         ### export sprites mesh data
         self.export_dict["meshs"] = []
@@ -1069,7 +1074,7 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
                 )
 
         self.export_dict["nodes"] = []
-
+        
         ### export armature with bones and attached sprites
         if self.armature != None:
             for child in self.children:
@@ -1083,23 +1088,23 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
                             self.bone_sprite_constraint[bone] = []
                         if child.name not in self.bone_sprite_constraint[bone]:
                             self.bone_sprite_constraint[bone].append(child.name)
-
+            
             for bone in self.armature.data.bones:
                 if bone.name not in self.bone_sprite_constraint:
                     self.bone_sprite_constraint[bone.name] = []
-
+            
             for bone in self.armature.data.bones:
                 if bone.parent == None:
                     if bone.name in self.bone_sprite_constraint:
                         self.export_dict["nodes"].append(self.armature_to_dict(bone))
-
+            
         ### export sprites that are not attached to any armature
         # for child in self.sprite_object.children:
         #     if child.type == "MESH":
         #         self.export_dict["nodes"].append(
         #             self.sprite_to_dict(child.name, self.sprite_object)
         #         )
-
+        
         ### animation export
         if self.export_anims:
             self.export_dict["animations"] = []
@@ -1168,7 +1173,7 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
         text_file = open(self.export_path, "w")
         text_file.write(json_file)
         text_file.close()
-
+        
         ### restore frame and animation state
         if len(anim_collections) > 0:
             set_action(context, item=current_anim_collection)
