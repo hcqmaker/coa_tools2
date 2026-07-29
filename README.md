@@ -92,7 +92,7 @@ To use the plugin select all the layers that should be exported, select export p
 Export Selected Sprites button.
 
 ## Tutorials
-#### How to use coa tols 2
+#### How to use coa tools 2
 Have a Look big Picture [Tutorials](https://github.com/hcqmaker/coa_tools2/tutorials/sample_tutorials.jpg)
 
 
