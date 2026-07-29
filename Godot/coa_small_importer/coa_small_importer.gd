@@ -3,12 +3,8 @@
 extends Window
 
 
-
 """
-
 carefull need to rename path has [ xxx.png --> xxx_png] the name of path do not have Special characters
-
-
 """
 
 @onready var file_dest_path: LineEdit = $root/VBoxContainer/to_path/fileDestPath
@@ -165,20 +161,20 @@ func _do_import(tmp_src:String, tmp_dest:String) -> void:
 	_collect_sprite_mesh_data(json_meshs, tmp_dict_sprite_name2data, tmp_dict_node_path2data)
 
 	# wait for copy image to dest path 
-	if (is_copy_image):
-		if cb_use_atlas.button_pressed:
-			_copy_atlas_png(_src_path, _dest_path)
-		else:
-			_copy_sprites(tmp_dict_sprite_name2data, _src_path, _dest_path)
+	if cb_use_atlas.button_pressed:
+		_copy_atlas_png(_src_path, _dest_path)
+	else:
+		_copy_sprites(tmp_dict_sprite_name2data, _src_path, _dest_path)
 
-		filesystem.scan();
-		await _await_filesystem_scan()
-		await get_tree().create_timer(1).timeout
+	filesystem.scan();
+	await _await_filesystem_scan()
+	await get_tree().create_timer(1).timeout
 		
-		if cb_use_atlas.button_pressed:
-			_read_atlas(_atlas_dict, _src_path, _dest_path)
+	if cb_use_atlas.button_pressed:
+		_read_atlas(_atlas_dict, _src_path, _dest_path)
 		
-	_generate_bones(json_nodes, node_2d, skeletion, tmp_dict_sprite_name2data, is_copy_image)
+	#_make_bones_usually(json_nodes, node_2d, skeletion, tmp_dict_sprite_name2data)
+	_make_bones_specially(json_nodes, node_2d, skeletion, tmp_dict_sprite_name2data)
 	_import_animations(json_anims, node_2d)
 		
 	
@@ -249,143 +245,66 @@ func _read_atlas(atlas_dict:Dictionary ,src_path:String, dest_path:String) -> vo
 				print(sprite_filename);
 	
 	pass
-	
-func _generate_bones(nodes:Array, parent:Node2D, subparent:Node2D, mesh_dict:Dictionary, copy_images:bool = true, i:int = 0):
+
+
+func _make_bones_usually(nodes:Array, parent:Node2D, subparent:Node2D, mesh_dict:Dictionary,  i:int = 0):
 	var tmp_src_path:String = _src_path;
 	var tmp_dest_path:String = _dest_path;
-	var tmp_is_skeleton2D:bool = subparent.is_class("Skeleton2D")
 	
-	var dir = DirAccess.open("res://")
 	for node in nodes:
-		
 		var new_node:Node2D
-		var offset = Vector2(0,0)
-		if "offset" in node:
-			offset = Vector2(node["offset"][0],node["offset"][1])
 		if node["type"] == "BONE":
 			_bone_count += 1
-			var new_bone:Bone2D = Bone2D.new()
-			new_bone.set_autocalculate_length_and_angle(false)
+			new_node = _make_one_bone(node, parent, subparent)
 			
-			var new_name:String = node["name"]
-			var new_tip:Vector2 = Vector2(node["position_tip"][0],node["position_tip"][1])
-			var new_pos:Vector2 = Vector2(node["position"][0],node["position"][1])
-			var new_rotation:float = node["rotation"]
-			var new_scale:Vector2 = Vector2(node["scale"][0],node["scale"][1])
-			var new_z:int = node["z"]
-			
-			new_bone.rest = Transform2D(Vector2(1.0, 0.0), Vector2(0.0, 1.0), new_pos)
-			new_bone.set_meta("imported_from_blender",true)
-			new_bone.set_name(new_name)
-			
-			new_bone.position = new_pos
-			new_bone.rotation = new_rotation
-			new_bone.scale = new_scale
-			new_bone.z_index = new_z
-			
-			subparent.add_child(new_bone)
-			new_bone.set_owner(parent)
-			new_node = new_bone
-
-		if node["type"] == "SPRITE" and not tmp_is_skeleton2D:
-			#print("=", tmp_is_skeleton2D, ",", subparent,",",i)
+		if node["type"] == "SPRITE":
 			_sprite_count += 1
-			### copy images to destination folder
+			#new_node = _make_one_sprite(node, parent,subparent)
+			new_node = _make_one_polygon(node, parent, subparent, mesh_dict);
 			
-			var new_name:String = node["name"]
-			var new_tiles_x:int = node["tiles_x"]
-			var new_tiles_y:int = node["tiles_y"]
-			var new_node_path:String = node["node_path"]
-			var new_frame_index:int = node["frame_index"]
-			var new_offset:Vector2 = Vector2(node["pivot_offset"][0],node["pivot_offset"][1])
-			var new_pos:Vector2 = Vector2(node["position"][0]+offset[0],node["position"][1]+offset[0])
-			var new_roataion:float = node["rotation"]
-			var new_scale:Vector2 = Vector2(node["scale"][0],node["scale"][1])
-			var new_z:int = node["z"]
 			
-			var mesh_node:Dictionary = mesh_dict[new_name];
-			
-			var new_uv:Array = mesh_node["uv"]
-			var new_vertices:Array = mesh_node["vertices"]
-			var new_polygons:Array = mesh_node["polygons"]
-			var new_weights:Array = mesh_node["weights"]
-			var new_resource_path:String = node["resource_path"]
-			
-			#print("i:",i, " name:", new_name)
-			var new_polygon:Polygon2D = Polygon2D.new()
-			if copy_images:
-				if cb_use_atlas.button_pressed:
-					#var atlas_texture:AtlasTexture = _atlas_dict[new_resource_path]
-					#new_polygon.texture = atlas_texture
-					new_polygon.texture = _texture2d;
-				else:
-					if tmp_src_path != "":
-						var sprite_dest_path = str(tmp_dest_path.get_base_dir(),"/",node["resource_path"])
-						if dir.file_exists(sprite_dest_path):
-							### set sprite texture
-							new_polygon.texture = load(sprite_dest_path)
-			if cb_use_atlas.button_pressed:
-				new_polygon.uv = _convert_to_atlas_uv(new_uv, new_resource_path);
-			else:
-				new_polygon.uv = _convert_to_uv(new_uv);
-			new_polygon.polygon = _convert_to_polyon(new_vertices);
-			new_polygon.polygons = _convert_to_polyons(new_polygons);
-			
-			for tmp_weight in new_weights:
-				var tmp_bone_name:String = tmp_weight["name"];
-				var node_path:String = _convert_to(tmp_weight["node_path"]);
-				var tmp_u_weight:Array = tmp_weight["weight"];
-				new_polygon.add_bone(node_path, tmp_u_weight);
-				#new_polygon.add_bone(node_path,_convert_to_weight(tmp_u_weight));
-				
-			new_polygon.set_meta("imported_from_blender",true)
-			new_polygon.set_name(new_name)
-			#new_polygon.set_hframes(new_tiles_x)
-			#new_polygon.set_vframes(new_tiles_y)
-			#new_polygon.set_frame(new_frame_index)
-			#new_polygon.set_centered(false)
-			new_polygon.set_offset(new_offset)
-			new_polygon.position = new_pos
-			new_polygon.rotation = new_roataion
-			new_polygon.scale = new_scale
-			new_polygon.z_index = new_z
-			
-
-			subparent.add_child(new_polygon)
-			new_polygon.set_owner(parent)
-			new_node = new_polygon;
-			
-			new_polygon.skeleton = _get_path_to_skeleton(new_node_path)
-			#
-			#var new_sprite:Sprite2D = Sprite2D.new()
-			#if copy_images:
-				#if tmp_src_path != "":
-					#var sprite_dest_path = str(tmp_dest_path.get_base_dir(),"/",node["resource_path"])
-					#if dir.file_exists(sprite_dest_path):
-						#### set sprite texture
-						#new_sprite.set_texture(load(sprite_dest_path))
-						#
-			#new_sprite.set_meta("imported_from_blender",true)
-			#new_sprite.set_name(new_name)
-			#new_sprite.set_hframes(new_tiles_x)
-			#new_sprite.set_vframes(new_tiles_y)
-			#new_sprite.set_frame(new_frame_index)
-			#new_sprite.set_centered(false)
-			#new_sprite.set_offset(new_offset)
-			#new_sprite.position = new_pos
-			#new_sprite.rotation = new_roataion
-			#new_sprite.scale = new_scale
-			#new_sprite.z_index = new_z
-#
-			#subparent.add_child(new_sprite)
-			#new_sprite.set_owner(parent)
-			#new_node = new_sprite;
-		
 		if "children" in node and node["children"].size() > 0:
 			i+=1
-			_generate_bones(node["children"], parent, new_node, mesh_dict, copy_images, i)
+			_make_bones_usually(node["children"], parent, new_node, mesh_dict,  i)
 	pass
+
+func _make_bones_specially(nodes:Array, parent:Node2D, skeleton:Skeleton2D, mesh_dict:Dictionary,  i:int = 0):
+	var tmp_src_path:String = _src_path;
+	var tmp_dest_path:String = _dest_path;
 	
+	var tmp_sprites:Array = []
+	### make bones
+	var tmp_array:Array = []
+	tmp_array.push_back([nodes,parent,skeleton]);
+	while(len(tmp_array) > 0):
+		var tmp_one:Array = tmp_array.pop_front();
+		
+		var tmp_nodes:Array = tmp_one[0]
+		var tmp_parent:Node2D = tmp_one[1]
+		var tmp_subparent:Node2D = tmp_one[2];
+		
+		for node in tmp_nodes:
+			var new_node:Node2D
+			if node["type"] == "BONE":
+				_bone_count += 1
+				new_node = _make_one_bone(node, tmp_parent, tmp_subparent)
+				
+				if "children" in node and node["children"].size() > 0:
+					tmp_nodes = node["children"];
+					tmp_array.push_back([node["children"],tmp_parent,new_node]);
+					
+			if node["type"] == "SPRITE":
+				_sprite_count += 1
+				#new_node = _make_one_sprite(node, tmp_parent,tmp_subparent)s
+				#new_node = _make_one_polygon(node, tmp_parent, tmp_subparent, mesh_dict);
+				tmp_sprites.push_back([node, tmp_parent, tmp_subparent]);
+	
+	### make sprites
+	for sprite_node in tmp_sprites:
+		var node:Dictionary = sprite_node[0]
+		var tmp_subparent:Node2D = sprite_node[2];
+		var new_polygon:Polygon2D = _make_one_polygon(node, parent, skeleton, mesh_dict);
+
 func _import_animations(animations:Array, owner:Node2D) -> void:
 	if (not animations or len(animations) <= 0):
 		return;
@@ -424,25 +343,25 @@ func _import_animations(animations:Array, owner:Node2D) -> void:
 			
 			if key.contains(":transform/pos"):
 				var path:String = key.replace(":transform/pos", ":position")
-				anim_data.track_set_path(idx, _convert_to(_base_path + path))
+				anim_data.track_set_path(idx, _convert_path_to(path))
 				for time in track_dict:
 					var value = track_dict[time]["value"]
 					anim_data.track_insert_key(idx, float(time),Vector2(value[0],value[1]))
 			elif key.contains(":transform/scale"):
 				var path:String = key.replace(":transform/scale", ":scale")
-				anim_data.track_set_path(idx, _convert_to(_base_path + path))
+				anim_data.track_set_path(idx, _convert_path_to(path))
 				for time in track_dict:
 					var value = track_dict[time]["value"]
 					anim_data.track_insert_key(idx,float(time),Vector2(value[0],value[1]))
 			elif key.contains(":modulate"):
 				var path:String = key.replace(":modulate", ":color")
-				anim_data.track_set_path(idx,_convert_to(_base_path +  path))
+				anim_data.track_set_path(idx,_convert_path_to(path))
 				for time in track_dict:
 					var value = track_dict[time]["value"]
 					anim_data.track_insert_key(idx,float(time),Color(value[0],value[1],value[2],1.0))
 			elif key.contains(":transform/rot"):
 				var path:String = key.replace(":transform/rot", ":rotation")
-				anim_data.track_set_path(idx, _convert_to(_base_path + path))
+				anim_data.track_set_path(idx, _convert_path_to(path))
 				for time in track_dict:
 					var value = track_dict[time]["value"]
 					anim_data.track_insert_key(idx,float(time), float(value))
@@ -451,18 +370,18 @@ func _import_animations(animations:Array, owner:Node2D) -> void:
 				#pass
 			elif key.contains(":z/z"):
 				var path:String = key.replace(":z/z", ":z_index")
-				anim_data.track_set_path(idx, _convert_to(_base_path + path))
+				anim_data.track_set_path(idx, _convert_path_to(path))
 				for time in track_dict:
 					var value = track_dict[time]["value"]
 					anim_data.track_insert_key(idx, float(time), int(value))
 			elif key.contains(":visibility/opacity"):
 				var path:String = key.replace(":visibility/opacity", ":color:alpha")
-				anim_data.track_set_path(idx, _convert_to(_base_path + path))
+				anim_data.track_set_path(idx, _convert_path_to(path))
 				for time in track_dict:
 					var value = track_dict[time]["value"]
 					anim_data.track_insert_key(idx, float(time), float(value))
 			else:
-				anim_data.track_set_path(idx, _convert_to(_base_path + key))
+				anim_data.track_set_path(idx, _convert_path_to(key))
 				anim_data.track_set_interpolation_type(idx, Animation.INTERPOLATION_LINEAR)
 			
 		var tmp_events:Dictionary = anim["events"];
@@ -490,12 +409,155 @@ func _import_animations(animations:Array, owner:Node2D) -> void:
 
 
 ###----------------------------------------------------------
+#region some helper function
+func _make_one_bone(node:Dictionary,parent:Node2D, subparent:Node2D, ) -> Bone2D:
+	var new_bone:Bone2D = Bone2D.new()
+	new_bone.set_autocalculate_length_and_angle(false)
+	
+	var new_name:String = node["name"]
+	var new_tip:Vector2 = Vector2(node["position_tip"][0],node["position_tip"][1])
+	var new_pos:Vector2 = Vector2(node["position"][0],node["position"][1])
+	var new_rotation:float = node["rotation"]
+	var new_scale:Vector2 = Vector2(node["scale"][0],node["scale"][1])
+	var new_z:int = node["z"]
+	
+	new_bone.rest = Transform2D(Vector2(1.0, 0.0), Vector2(0.0, 1.0), new_pos)
+	new_bone.set_meta("imported_from_blender",true)
+	new_bone.set_name(new_name)
+	
+	new_bone.position = new_pos
+	new_bone.rotation = new_rotation
+	new_bone.scale = new_scale
+	new_bone.z_index = new_z
+	
+	subparent.add_child(new_bone)
+	new_bone.set_owner(parent)
+	#new_node = new_bone/	
+	return new_bone;
 
+func _make_one_sprite(node:Dictionary,parent:Node2D,subparent:Node2D) -> Sprite2D:
+	var tmp_dest_path:String = _dest_path;
+	var offset = Vector2(0,0)
+	
+	if "offset" in node:
+		offset = Vector2(node["offset"][0],node["offset"][1])
+		
+	var new_name:String = node["name"]
+	var new_tiles_x:int = node["tiles_x"]
+	var new_tiles_y:int = node["tiles_y"]
+	var new_node_path:String = node["node_path"]
+	var new_frame_index:int = node["frame_index"]
+	var new_offset:Vector2 = Vector2(node["pivot_offset"][0],node["pivot_offset"][1])
+	var new_pos:Vector2 = Vector2(node["position"][0]+offset[0],node["position"][1]+offset[0])
+	var new_roataion:float = node["rotation"]
+	var new_scale:Vector2 = Vector2(node["scale"][0],node["scale"][1])
+	var new_z:int = node["z"]
+	var new_resource_path:String = node["resource_path"]
+	
+	var new_sprite:Sprite2D = Sprite2D.new()
+
+	if cb_use_atlas.button_pressed:
+		#new_sprite.set_texture(load(sprite_dest_path))
+		var atlas_info:Dictionary = _atlas_dict[new_resource_path]
+		new_sprite.texture = _make_atlas_texture(atlas_info)
+	else:
+		var sprite_dest_path = str(tmp_dest_path.get_base_dir(),"/",)
+		new_sprite.set_texture(load(sprite_dest_path))
+				
+	new_sprite.set_meta("imported_from_blender",true)
+	new_sprite.set_name(new_name)
+	new_sprite.set_hframes(new_tiles_x)
+	new_sprite.set_vframes(new_tiles_y)
+	new_sprite.set_frame(new_frame_index)
+	new_sprite.set_centered(false)
+	new_sprite.set_offset(new_offset)
+	new_sprite.position = new_pos
+	new_sprite.rotation = new_roataion
+	new_sprite.scale = new_scale
+	new_sprite.z_index = new_z
+
+	subparent.add_child(new_sprite)
+	new_sprite.set_owner(parent)
+
+	return new_sprite;
+
+func _make_one_polygon(node:Dictionary,parent:Node2D,subparent:Node2D,mesh_dict:Dictionary, accp:Vector2 = Vector2.ZERO) -> Polygon2D:
+	var tmp_dest_path:String = _dest_path;
+	var offset = Vector2(0,0)
+	
+	if "offset" in node:
+		offset = Vector2(node["offset"][0],node["offset"][1])
+	var new_name:String = node["name"]
+	var new_tiles_x:int = node["tiles_x"]
+	var new_tiles_y:int = node["tiles_y"]
+	var new_node_path:String = node["node_path"]
+	var new_frame_index:int = node["frame_index"]
+	var new_offset:Vector2 = Vector2(node["pivot_offset"][0],node["pivot_offset"][1])
+	var new_pos:Vector2 = Vector2(node["position"][0]+offset[0],node["position"][1]+offset[0]) + accp
+	var new_roataion:float = node["rotation"]
+	var new_scale:Vector2 = Vector2(node["scale"][0],node["scale"][1])
+	var new_z:int = node["z"]
+	
+	var mesh_node:Dictionary = mesh_dict[new_name];
+	
+	var new_uv:Array = mesh_node["uv"]
+	var new_vertices:Array = mesh_node["vertices"]
+	var new_polygons:Array = mesh_node["polygons"]
+	var new_weights:Array = mesh_node["weights"]
+	var new_resource_path:String = node["resource_path"]
+	
+	#print("i:",i, " name:", new_name)
+	var new_polygon:Polygon2D = Polygon2D.new()
+
+	if cb_use_atlas.button_pressed:
+		new_polygon.texture = _texture2d;
+	else:
+		var sprite_dest_path = str(tmp_dest_path.get_base_dir(),"/",node["resource_path"])
+		new_polygon.texture = load(sprite_dest_path)
+				
+	if cb_use_atlas.button_pressed:
+		new_polygon.uv = _convert_to_atlas_uv(new_uv, new_resource_path);
+	else:
+		new_polygon.uv = _convert_to_uv(new_uv);
+	new_polygon.polygon = _convert_to_polyon(new_vertices);
+	new_polygon.polygons = _convert_to_polyons(new_polygons);
+	
+	for tmp_weight in new_weights:
+		var tmp_bone_name:String = tmp_weight["name"];
+		var node_path:String = tmp_weight["node_path"];
+		var tmp_u_weight:Array = tmp_weight["weight"];
+		new_polygon.add_bone(node_path, _convert_to_weight(tmp_u_weight));
+		#new_polygon.add_bone(node_path,_convert_to_weight(tmp_u_weight));
+		
+	new_polygon.set_meta("imported_from_blender",true)
+	new_polygon.set_name(new_name)
+	#new_polygon.set_hframes(new_tiles_x)
+	#new_polygon.set_vframes(new_tiles_y)
+	#new_polygon.set_frame(new_frame_index)
+	#new_polygon.set_centered(false)
+	new_polygon.set_offset(new_offset)
+	new_polygon.position = new_pos
+	new_polygon.rotation = new_roataion
+	new_polygon.scale = new_scale
+	new_polygon.z_index = new_z
+	
+	#new_polygon.skeleton = _get_path_to_skeleton(new_node_path)
+	new_polygon.skeleton = NodePath("../")
+	
+	subparent.add_child(new_polygon)
+	subparent.move_child(new_polygon,0)
+	new_polygon.set_owner(parent)
+	return new_polygon;
+	
 func _convert_rect(json:Dictionary) -> Rect2:
 	return Rect2(json["x"],json["y"],json["w"],json["h"])
 
-func _convert_to(path:String) -> String:
-	return path.replace(".","_");
+func _convert_path_to(path:String) -> String:
+	if (path.contains(".")):
+		var idx:int = path.rfind("/")
+		if (idx > -1):
+			path = path.right(path.length() - idx -1)
+	return _base_path + path.replace(".","_");
 
 func _rad_to_deg(v:float) -> float:
 	
@@ -514,12 +576,40 @@ func _get_path_to_skeleton(node_path:String) -> String:
 		for i  in range(num-1):
 			rs += "/.."
 	return rs
+
+func _get_node_pos_acc(node:Node) -> Vector2:
+	var p:Vector2 = node.position;
+	var tmp:Node = node.get_parent();
+	while (tmp):
+		p += tmp.position;
+		tmp = tmp.get_parent();
+	return p;
+	
+func _convert_to_weight(arr:Array) -> PackedFloat32Array:
+	var weight_array:PackedFloat32Array = PackedFloat32Array()
+	for v in arr:
+		weight_array.append(v)
+	return weight_array;
 	
 func _convert_to_polyon(src:Array) -> PackedVector2Array:
 	var rs:PackedVector2Array = PackedVector2Array()
 	for i in range(0, len(src), 2):
 		rs.append(Vector2(src[i], src[i+1]));
 	return rs;
+	
+func _make_atlas_texture(atlas_info:Dictionary) -> AtlasTexture:
+	var region:Dictionary = atlas_info["r"]
+	var margin:Dictionary = atlas_info["m"]
+	
+	var px:float = region["x"];
+	var py:float = region["y"]
+	
+	var atlas:AtlasTexture = AtlasTexture.new()
+	atlas.region = _convert_rect(region);
+	atlas.margin =_convert_rect(margin)
+	atlas.atlas = _texture2d
+	
+	return atlas
 	
 func _convert_to_atlas_uv(src:Array, resource_path:String) -> PackedVector2Array:
 	var atlas_info:Dictionary = _atlas_dict[resource_path]
@@ -548,7 +638,4 @@ func _convert_to_polyons(src:Array) -> Array:
 		rs.append(PackedInt32Array(vv))
 	return rs;
 	
-#func _convert_to_weight(src:Array)-> PackedFloat32Array:
-	#var rs:PackedFloat32Array = PackedFloat32Array();
-	#
-	#return rs
+#endregion

@@ -319,6 +319,8 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
         bone_scale_2d = [bone_scale[1], bone_scale[1]]
         return bone_scale_2d
 
+
+    
     def get_relative_bone_pos(self, bone, type):
         pose_bone = self.armature.pose.bones[bone.name]
         pose_bone_location = pose_bone.location
@@ -383,6 +385,18 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
 
         degrees = round(math.degrees(bone_euler_rot.z), 2)
         return math.radians(degrees)
+
+    def get_pose_mesh_pos(self, parent, obj):
+        # if isinstance(parent, bpy.types.Bone):
+        #     relative_pos = (
+        #         obj.matrix_basis.to_translation() + parent.head_local
+        #     ) * self.scale_multiplier
+        # else:
+        #     relative_pos = obj.matrix_local.to_translation() * self.scale_multiplier
+        relative_pos = obj.matrix_local.to_translation() * self.scale_multiplier
+
+        relative_pos_2d = [relative_pos[0], -relative_pos[2]]
+        return relative_pos_2d
     
     def get_relative_mesh_pos(self, parent, obj):
         if isinstance(parent, bpy.types.Bone):
@@ -937,7 +951,7 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
                         ### bone transformations
 
                         # if (key == "Root/Top:transform/rot" and not restpose):
-                        #     print("-------------------------------->>>>>------------")
+                            # print("-------------------------------->>>>>------------")
                         tmp_relative_bone_pos = self.get_relative_bone_pos(bone, "HEAD")
                         tmp_bone_rotation = self.get_pose_bone_rotation(bone)
                         tmp_bone_scale = self.get_pose_bone_scale(bone)
@@ -964,49 +978,23 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
                             parent = self.sprite_object
 
                         ### sprite transformations and other properties
-                        self.keyframe_to_dict(
-                            track,
-                            "pos",
-                            self.get_relative_mesh_pos(
-                                parent, bpy.data.objects[sprite]
-                            ),
-                            channels,
-                            key,
-                        )
-                        self.keyframe_to_dict(
-                            track,
-                            "rot",
-                            self.get_sprite_rotation(sprite),
-                            channels,
-                            key,
-                        )
-                        self.keyframe_to_dict(
-                            track, "scale", self.get_sprite_scale(sprite), channels, key
-                        )
-                        self.keyframe_to_dict(
-                            track,
-                            "opacity",
-                            self.get_sprite_opacity(sprite),
-                            channels,
-                            key,
-                        )
-                        self.keyframe_to_dict(
-                            track, "z", self.get_z_value(sprite), channels, key
-                        )
-                        self.keyframe_to_dict(
-                            track,
-                            "frame",
-                            self.get_sprite_frame_index(sprite),
-                            channels,
-                            key,
-                        )
-                        self.keyframe_to_dict(
-                            track,
-                            "modulate",
-                            self.get_modulate_color(sprite),
-                            channels,
-                            key,
-                        )
+                        # tmp_relative_mesh_pos = self.get_relative_mesh_pos(parent, bpy.data.objects[sprite])
+                        tmp_relative_mesh_pos = self.get_pose_mesh_pos(parent, bpy.data.objects[sprite])
+                        tmp_sprite_rotation = self.get_sprite_rotation(sprite)
+                        tmp_sprite_scale = self.get_sprite_scale(sprite)
+                        tmp_sprite_opacity = self.get_sprite_opacity(sprite)
+                        tmp_z_value = self.get_z_value(sprite)
+                        tmp_frame_index = self.get_sprite_frame_index(sprite)
+                        tmp_modulate_color = self.get_modulate_color(sprite)
+
+                        self.keyframe_to_dict(track, "pos", tmp_relative_mesh_pos, channels, key)
+                        self.keyframe_to_dict(track, "rot", tmp_sprite_rotation, channels, key)
+                        self.keyframe_to_dict(track, "scale", tmp_sprite_scale, channels, key)
+
+                        self.keyframe_to_dict(track, "opacity",tmp_sprite_opacity,channels, key)
+                        self.keyframe_to_dict(track, "z", tmp_z_value, channels, key)
+                        self.keyframe_to_dict(track,"frame",tmp_frame_index,channels,key)
+                        self.keyframe_to_dict(track,"modulate", tmp_modulate_color,channels,key,)
 
         scene.frame_current = current_frame
 
