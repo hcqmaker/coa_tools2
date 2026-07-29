@@ -28,7 +28,7 @@ COA Tools 2 is an add-on developed by [ndee89](https://github.com/ndee85) and mo
 
 [The original COA Tools by ndee89](https://github.com/ndee85/coa_tools) provided a rapid workflow for creating 2D cutout characters/animations in Blender. With COA Tools 2, the goal is to support Blender 3.4 and above, introduce automatic mesh generation, and establish a workflow with minimal features, allowing direct editing without going through proprietary modes.
 
-The current Blender add-on release is tested with Blender 5.1.
+The current Blender add-on release is tested with Blender 5.1.2
 
 Currently, the focus for development is on two aspects:
 
@@ -101,6 +101,19 @@ Have a Look big Picture [Tutorials](https://github.com/hcqmaker/coa_tools2/tutor
 1. Need `Godot/coa_small_importer/` put into `addon/coa_small_importer/` and active
 2. You will found a `COA Small Import` Button in 2D Editor View
 3. Select Import Path and Output Path Click Import.
+
+
+## Test
+1. COA tools2
+	- [ok] Edit Mesh
+	- [ok] Edit Armature
+	- [no] Edit Shapekey 
+	- [no] Edit Weights(use blender paint weight)
+	
+	- [ok] Eport godot 4.7 json
+2. Godot 4.7 (coa_small_importer plugin)
+	- [ok] Import
+	- [ok] use Atlas (Free texture packer to pack images, Have look in `samples/tree_01/blender_export/tree_01.ftpp`
 
 ### Documentation for development
 
