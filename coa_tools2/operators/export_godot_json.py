@@ -486,7 +486,6 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
         uv_data = sprite_mesh.uv_layers.active.data
         polygons = sprite_mesh.polygons
 
-
         """
                coa tool convert to 
         coord 
@@ -522,7 +521,7 @@ class COATOOLS2_OT_ExportToGodotJson(bpy.types.Operator, bpy_extras.io_utils.Exp
         uv_array = []
 
         image_size = [-1, -1]
-        start_idx = 4
+        start_idx = 4 # remove 'coa_base_sprite'  0 1 2 3 points
         scale_size = self.scale_size
         num = len(vertices)
         # print(num, "-->", len(uv_layer))
