@@ -36,12 +36,40 @@ from bpy.props import (
     EnumProperty,
     IntVectorProperty,
 )
-import os
+import os,re
 from bpy_extras.io_utils import ExportHelper, ImportHelper
 import json
 from bpy.app.handlers import persistent
 from . import constants as CONSTANTS
 
+
+def make_array(num, val='0'):
+    rs = []
+    for ii in range(num):
+        rs.append(val)
+    return rs
+
+def join_array(arr, val=','):
+    rs = []
+    for i in arr:
+        rs.append(str(i))
+    return val.join(rs)
+
+def to_linux_path(path):
+    return path.replace("\\","/")
+
+def to_join_path(p1:str, p2:str):
+    rs = to_linux_path(p1 + "/" + p2)
+    rs = re.sub(r'/+', '/', rs)
+    if rs.startswith("/"):
+        return rs[1:]
+    return rs
+
+def string_replace(s:str, rs):
+    rstr = s
+    for i,r in enumerate(rs):
+        rstr = rstr.replace("{"+str(i)+"}", r)
+    return rstr
 
 def get_active_tool(mode):  # "EDIT_MESH", "EDIT_ARMATURE", "OBJECT"
     return bpy.context.workspace.tools.from_space_view3d_mode(mode, create=False).idname

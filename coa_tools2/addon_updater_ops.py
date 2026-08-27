@@ -743,7 +743,9 @@ def showReloadPopup():
 
     a = saved_state != None
     b = "just_updated" in saved_state
-    c = saved_state["just_updated"]
+    c = None
+    if (b):
+        c = saved_state["just_updated"]
 
     if a and b and c:
         updater.json_reset_postupdate()  # so this only runs once

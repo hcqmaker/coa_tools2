@@ -533,15 +533,20 @@ class SceneProperties(bpy.types.PropertyGroup):
     # Exporer Properties
     project_name: bpy.props.StringProperty(default="New Project", name="Project Name")
     armature_name: bpy.props.StringProperty(default="Armature", name="Armature Name")
-    runtime_format: bpy.props.EnumProperty(default="CREATURE", description="Exports for choosen runtime.",items=(("CREATURE","Creature","Creature"),("DRAGONBONES","Dragonbones","Dragonbones")))
+    runtime_format: bpy.props.EnumProperty(default="GODOTSCENE", description="Exports for choosen runtime.",
+                                           items=(
+                                                    ("GODOTSCENE","GodotScene","GodotScene"),
+                                                    ("CREATURE","Creature","Creature"),
+                                                    ("DRAGONBONES","Dragonbones","Dragonbones")
+                                                  ))
     image_format: bpy.props.EnumProperty(name="Image Format", default="PNG", description="Exports Atlas in the chosen format.",items=(("PNG","PNG","PNG"),("WEBP","WEBP","WEBP")))
     image_quality: bpy.props.IntProperty(name="Image Quality", default=90, min=0, max=100, description="Defines the Image Quality for the chosen Image Format. 100 is the best quality.", subtype="PERCENTAGE")
     export_path: bpy.props.StringProperty(default="", name="Export Path",subtype="DIR_PATH")
     export_image_mode: bpy.props.EnumProperty(default="ATLAS", name="Image Mode",items=(("ATLAS","Atlas","Atlas"),("IMAGES","Images","Images")))
     atlas_mode: bpy.props.EnumProperty(default="LIMIT_SIZE", name="Atlas Mode",items=(("AUTO_SIZE", "Auto Size", "Auto Size"),("LIMIT_SIZE","Limit Size","Limit Size")))
     sprite_scale: bpy.props.FloatProperty(default=1.0, min=0.1, max=1.0, name="Sprite Output Scale", description="Define the Sprite Output Scale", step=0.1)
-    atlas_resolution_x: bpy.props.IntProperty(default=1024,name="Resolution X",min=8,subtype="PIXEL")
-    atlas_resolution_y: bpy.props.IntProperty(default=1024, name="Resolution Y",min=8,subtype="PIXEL")
+    atlas_resolution_x: bpy.props.IntProperty(default=2048,name="Resolution X",min=8,subtype="PIXEL")
+    atlas_resolution_y: bpy.props.IntProperty(default=2048, name="Resolution Y",min=8,subtype="PIXEL")
     atlas_island_margin: bpy.props.IntProperty(default=1, name="Texture Island Margin",min=1,subtype="PIXEL")
     export_bake_anim: bpy.props.BoolProperty(default=False, name="Bake Animation")
     export_bake_steps: bpy.props.IntProperty(default=1, min=1, name="Bake Steps",description="Set key every x Frame.")

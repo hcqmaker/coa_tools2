@@ -63,90 +63,102 @@ def select_outliner_object(self, context):
 
 def set_hide(self, value):
     if self.entry_type in ["OBJECT", "SPRITE", "BONE_PARENT"]:
-        selected_object = bpy.context.view_layer.objects[self.name]
-        selected_object.hide_set(value)
-        selected_object.hide_viewport = value
-        selected_object.hide_render = value
-        self["hide"] = value
-        if (
-            self.id_data.coa_tools2.outliner[
-                self.id_data.coa_tools2.outliner_index
-            ].name
-            == self.name
-        ):
-            selected_object.select_set(not value)
+        if self.name in bpy.context.view_layer.objects:
+            selected_object = bpy.context.view_layer.objects[self.name]
+            selected_object.hide_set(value)
+            selected_object.hide_viewport = value
+            selected_object.hide_render = value
+            self["hide"] = value
+            if (
+                self.id_data.coa_tools2.outliner[
+                    self.id_data.coa_tools2.outliner_index
+                ].name
+                == self.name
+            ):
+                selected_object.select_set(not value)
 
     elif self.entry_type in ["BONE"]:
-        selected_object = bpy.context.view_layer.objects[self.name]
-        bone = selected_object.data.bones[self.display_name]
-        self["hide"] = value
-        bone.hide = value
+        if self.name in bpy.context.view_layer.objects:
+            selected_object = bpy.context.view_layer.objects[self.name]
+            bone = selected_object.data.bones[self.display_name]
+            self["hide"] = value
+            bone.hide = value
 
 
 def get_hide(self):
     if self.entry_type in ["OBJECT", "SPRITE", "BONE_PARENT"]:
-        selected_object = bpy.context.view_layer.objects[self.name]
-        return (
-            True
-            if selected_object.hide_viewport
-            or selected_object.hide_get()
-            or selected_object.hide_render
-            else False
-        )
+        if (self.name in bpy.context.view_layer.objects):
+            selected_object = bpy.context.view_layer.objects[self.name]
+            return (
+                True
+                if selected_object.hide_viewport
+                or selected_object.hide_get()
+                or selected_object.hide_render
+                else False
+            )
     elif self.entry_type in ["BONE"]:
-        selected_object = bpy.context.view_layer.objects[self.name]
-        bone = selected_object.data.bones[self.display_name]
-        return bone.hide
-    else:
-        return False
+        if self.name in bpy.context.view_layer.objects:
+            selected_object = bpy.context.view_layer.objects[self.name]
+            bone = selected_object.data.bones[self.display_name]
+            return bone.hide
+
+    return False
 
 
 def set_hide_select(self, value):
     if self.entry_type in ["OBJECT", "SPRITE", "BONE_PARENT"]:
-        selected_object = bpy.context.view_layer.objects[self.name]
-        selected_object.hide_select = value
-        self["hide_select"] = value
+        if self.name in bpy.context.view_layer.objects:
+            selected_object = bpy.context.view_layer.objects[self.name]
+            selected_object.hide_select = value
+            self["hide_select"] = value
     elif self.entry_type in ["BONE"]:
-        selected_object = bpy.context.view_layer.objects[self.name]
-        bone = selected_object.data.bones[self.display_name]
-        self["hide_select"] = value
-        bone.hide_select = value
+        if self.name in bpy.context.view_layer.objects:
+            selected_object = bpy.context.view_layer.objects[self.name]
+            bone = selected_object.data.bones[self.display_name]
+            self["hide_select"] = value
+            bone.hide_select = value
 
 
 def get_hide_select(self):
     if self.entry_type in ["OBJECT", "SPRITE", "BONE_PARENT"]:
-        selected_object = bpy.context.view_layer.objects[self.name]
-        return selected_object.hide_select
+        if (self.name in bpy.context.view_layer.objects):
+            selected_object = bpy.context.view_layer.objects[self.name]
+            return selected_object.hide_select
     elif self.entry_type in ["BONE"]:
-        selected_object = bpy.context.view_layer.objects[self.name]
-        bone = selected_object.data.bones[self.display_name]
-        return bone.hide_select
-    else:
-        return False
+        if self.name in bpy.context.view_layer.objects:
+            selected_object = bpy.context.view_layer.objects[self.name]
+            bone = selected_object.data.bones[self.display_name]
+            return bone.hide_select
+
+    return False
 
 
 def set_favorite(self, value):
     if self.entry_type in ["OBJECT", "SPRITE", "BONE_PARENT"]:
-        selected_object = bpy.context.view_layer.objects[self.name]
-        selected_object.coa_tools2.favorite = value
-        self["favorite"] = value
+        if (self.name in bpy.context.view_layer.objects):
+            selected_object = bpy.context.view_layer.objects[self.name]
+            selected_object.coa_tools2.favorite = value
+            self["favorite"] = value
     elif self.entry_type in ["BONE"]:
-        selected_object = bpy.context.view_layer.objects[self.name]
-        bone = selected_object.data.bones[self.display_name]
-        self["favorite"] = value
-        bone.coa_tools2.favorite = value
+        if self.name in bpy.context.view_layer.objects:
+            selected_object = bpy.context.view_layer.objects[self.name]
+            bone = selected_object.data.bones[self.display_name]
+            self["favorite"] = value
+            bone.coa_tools2.favorite = value
 
 
 def get_favorite(self):
     if self.entry_type in ["OBJECT", "SPRITE", "BONE_PARENT"]:
-        selected_object = bpy.context.view_layer.objects[self.name]
-        return selected_object.coa_tools2.favorite
+        if self.name in bpy.context.view_layer.objects:
+            selected_object = bpy.context.view_layer.objects[self.name]
+            return selected_object.coa_tools2.favorite
     elif self.entry_type in ["BONE"]:
-        selected_object = bpy.context.view_layer.objects[self.name]
-        bone = selected_object.data.bones[self.display_name]
-        return bone.coa_tools2.favorite
-    else:
-        return False
+        if self.name in bpy.context.view_layer.objects:
+            selected_object = bpy.context.view_layer.objects[self.name]
+            bone = selected_object.data.bones[self.display_name]
+            return bone.coa_tools2.favorite
+
+    return False
 
 
 class COAOutliner(bpy.types.PropertyGroup):

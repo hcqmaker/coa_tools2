@@ -80,8 +80,14 @@ from .operators import convert_from_old
 from .operators import copy_mesh_data
 from .operators import export_godot_json
 from .operators import export_json
+
+
 from .operators.exporter import export_dragonbones
 from .operators.exporter import export_creature
+from .operators.exporter import export_godot_tscn
+from .operators.exporter import export_panel
+
+
 
 # register
 ##################################
@@ -275,10 +281,14 @@ classes = (
     convert_from_old.COATOOLS2_OT_ConvertOldVersionCoatools,
     change_alpha_mode.COATOOLS2_OT_ChangeAlphaMode,
     change_alpha_mode.COATOOLS2_OT_ChangeTextureInterpolationMode,
+
     # exporter
     export_dragonbones.COATOOLS2_OT_DragonBonesExport,
-    export_dragonbones.COATOOLS2_PT_ExportPanel,
+    export_godot_tscn.COATOOLS2_OT_GodotTscnExport,
     export_creature.COATOOLS2_OT_CreatureExport,
+
+    export_panel.COATOOLS2_PT_ExportPanel,
+
     export_json.COATOOLS2_OT_ExportToJson,
     export_godot_json.COATOOLS2_OT_ExportToGodotJson,
 )

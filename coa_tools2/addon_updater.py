@@ -1412,13 +1412,26 @@ class Singleton_updater(object):
         jpath = os.path.join(self._updater_path, "updater_status.json")
         if os.path.isfile(jpath):
             with open(jpath) as data_file:
-                self._json = json.load(data_file)
-                if self._verbose:
-                    print(
-                        "{} Updater: Read in json settings from file".format(
-                            self._addon
+                try:
+                    self._json = json.load(data_file)
+                    if self._verbose:
+                        print(
+                            "{} Updater: Read in json settings from file".format(
+                                self._addon
+                            )
                         )
-                    )
+                except:
+                    print(" load json file fail: in ", jpath)
+                    self._json = {
+                                "last_check": "",
+                                "backup_date": "",
+                                "update_ready": False,
+                                "ignore": True,
+                                "just_restored": False,
+                                "just_updated": False,
+                                "version_text": {},
+                            }
+                    pass
         else:
             # set data structure
             self._json = {
@@ -1657,3 +1670,4 @@ class GitlabEngine(object):
 # -----------------------------------------------------------------------------
 
 Updater = Singleton_updater()
+Updater.ignore_update()
