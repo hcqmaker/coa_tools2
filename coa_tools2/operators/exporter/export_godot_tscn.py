@@ -1,6 +1,6 @@
 
 
-import bpy
+import bpy,time
 import bmesh
 import json
 from bpy.props import (
@@ -197,6 +197,7 @@ def _in_get_sprite_image_data(sprite_data):
 def _in_copy_textures(self, sprites, texture_dir_path, tmp_kv):
     global img_names
     img_names = {}
+    ii_key = 1
     for sprite in sprites:
         if sprite.type == "MESH":
             imgs = []
@@ -221,7 +222,8 @@ def _in_copy_textures(self, sprites, texture_dir_path, tmp_kv):
                 dst_path = os.path.join(texture_dir_path, img_name)
 
                 if (img.name not in tmp_kv):
-                    tmp_kv[img.name] = {"path":dst_path, "key":_in_get_key()}
+                    tmp_kv[img.name] = {"path":dst_path, "key":f"{ii_key}_{_in_get_key()}"}
+                    ii_key += 1
 
                 img_names[key] = img_name[: img_name.rfind(".")]
 
@@ -830,7 +832,12 @@ def _in_pose_bone_rotation(armature, bone, relative=True):
     pose_bone = armature.pose.bones[bone.name]
 
     bone_euler_rot = pose_bone.rotation_quaternion.to_euler()
-    degrees = round(math.degrees(bone_euler_rot.z), 2)
+    dir = 1
+    if bone.parent == None:
+        dir = 1
+    else:
+        dir = -1
+    degrees = round(math.degrees(bone_euler_rot.z), 2) * dir
     return degrees#math.radians(degrees)
 
 def _in_pose_bone_scale(armature, bone, relative=True):
@@ -895,6 +902,9 @@ def _in_get_z_order(self, slot):
         if i == slot.coa_tools2.z_value:
             return i
     return -1
+
+def _in_get_z_value(self, slot):
+    return slot.coa_tools2.z_value
 
 ### LOCATION, ROTATION, SCALE, ANY
 def _in_bone_key_on_frame(bone, frame, animation_data, type="LOCATION"):  
@@ -1168,6 +1178,36 @@ def bone_is_constraint_target(bone, armature):
     return False
 
 
+def check_deform_bones(self, armature, sprites):
+    global bone_uses_constraints
+    bone_uses_constraints = {}
+    context = bpy.context
+    context.view_layer.objects.active = armature
+
+    bpy.ops.object.mode_set(mode="EDIT")
+
+    for bone in armature.data.bones:
+        pbone = armature.pose.bones[bone.name]
+        ebone = armature.data.edit_bones[bone.name]
+        bone_uses_constraints[pbone.name] = check_if_bone_uses_constraints(pbone)
+        # if pbone.is_in_ik_chain or len(pbone.constraints) > 0:
+        #     ebone.parent = None
+
+        # is_deform_bone = bone_is_deform_bone(self, bone, sprites)
+        # is_driver = bone_is_driver(bone, sprites)
+        # is_const_target = bone_is_constraint_target(bone, armature)
+        # has_children = len(bone.children) > 0
+
+        # if (
+        #     (not is_deform_bone and is_driver)
+        #     or (not is_deform_bone and is_const_target)
+        #     or (not is_deform_bone and not has_children)
+        #     or (not is_deform_bone and not bone.use_deform)
+        # ):
+        #     armature.data.edit_bones.remove(armature.data.edit_bones[bone.name])
+
+    bpy.ops.object.mode_set(mode="OBJECT")
+
 def delete_non_deform_bones(self, armature, sprites):
     global bone_uses_constraints
     bone_uses_constraints = {}
@@ -1211,57 +1251,91 @@ def create_copy_transform_constraints(self, armature_from, armature_to):
             const.owner_space = "POSE"
 
 
-def create_cleaned_armature_copy(self, armature, sprites):
+def collect_armature_info(self, armature, sprites):
+# def create_cleaned_armature_copy(self, armature, sprites):
     context = bpy.context
     if armature != None:
         scene = bpy.context.scene
 
-        armature_data = armature.data.copy()
-        armature_copy = armature.copy()
-        armature_copy.data = armature_data
-        armature_copy.name = "COA_EXPORT_ARMATURE"
+        # armature_data = armature.data.copy()
+        # armature_copy = armature.copy()
+        # armature_copy.data = armature_data
+        # armature_copy.name = "COA_EXPORT_ARMATURE"
 
-        context.collection.objects.link(armature_copy)
+        # context.collection.objects.link(armature_copy)
 
-        delete_non_deform_bones(self, armature_copy, sprites)
-        create_copy_transform_constraints(self, armature, armature_copy)
+        # delete_non_deform_bones(self, armature_copy, sprites)
+        # create_copy_transform_constraints(self, armature, armature_copy)
 
         ### store armature rest position. Relevant for later animation calculations
         scale = 1 / get_addon_prefs(context).sprite_import_export_scale
 
-        get_edit_bones(armature_copy, context)
+        # check_deform_bones(self, armature, sprites)
+        # get_edit_bones(armature, context)
 
-        armature_copy.data.pose_position = "REST"
+        global edit_bone_matrices
+        edit_bone_matrices = {}
+        active_object = context.active_object
+        context.view_layer.objects.active = armature
+        mode = armature.mode
+        bpy.ops.object.mode_set(mode="EDIT")
+    
+        for bone in armature.data.bones:
+            pbone = armature.pose.bones[bone.name]
+            bone_uses_constraints[pbone.name] = check_if_bone_uses_constraints(pbone)
+                    
+            edit_bone = armature.data.edit_bones[bone.name]
+            edit_bone_matrices[bone.name] = edit_bone.matrix
+    
+        bpy.ops.object.mode_set(mode=mode)
+        context.view_layer.objects.active = active_object
+        
+
+        # armature_copy.data.pose_position = "REST"
         armature.data.pose_position = "REST"
         bpy.context.scene.frame_set(bpy.context.scene.frame_current)
-        for bone in armature_copy.data.bones:
+        for bone in armature.data.bones:
             pose_bone = armature.pose.bones[bone.name]
             relative = True if bone.name in bone_uses_constraints else False
     
             transformations = {}
-            transformations["bone_pos"] = _in_rest_bone_location(armature_copy, pose_bone, scale)
-            transformations["bone_rot"] = _in_reset_bone_rotation(armature_copy, bone, relative)
-            transformations["bone_scale"] = _in_reset_bone_scale(armature_copy, bone, relative)
+            transformations["bone_pos"] = _in_rest_bone_location(armature, pose_bone, scale)
+            transformations["bone_rot"] = _in_reset_bone_rotation(armature, bone, relative)
+            transformations["bone_scale"] = _in_reset_bone_scale(armature, bone, relative)
 
             self.armature_restpose[bone.name] = transformations
-        armature_copy.data.pose_position = "POSE"
+        # armature_copy.data.pose_position = "POSE"
         armature.data.pose_position = "POSE"
-        return armature_copy
-    return None
+        # return armature_copy
+    # return None
 
 
-def _in_get_animation_data(self, sprite_object, armature, armature_orig):
+# def _in_get_animation_data(self, sprite_object, armature, armature_orig):
+def _in_get_animation_data(self, sprite_object, armature):
     context = bpy.context
     scale = 1 / get_addon_prefs(context).sprite_import_export_scale
     anims = sprite_object.coa_tools2.anim_collections
 
     animations = []
 
+
+    tmp_anims = ["Idle","Run","Color_down"]
+    tmp_bones = ['Root']
+
+    # tmp_excludes = ["NO ACTION","Restpose"]
+    tmp_excludes = ["NO ACTION"]
+
     for anim_index, anim in enumerate(anims):
-        if anim.name not in ["NO ACTION"] and anim.export:
-            restpose = True if (anim.name == "Restpose") else False
+        if anim.name not in tmp_excludes and anim.export:
             ### set animation
             sprite_object.coa_tools2.anim_collections_index = anim_index
+      
+            restpose = False
+            if anim.name == 'Restpose':
+                armature.data.pose_position = "REST"
+                restpose = True
+            else:
+                armature.data.pose_position = "POSE"
 
             start_frame = 0
             begin_frame = 0
@@ -1280,6 +1354,8 @@ def _in_get_animation_data(self, sprite_object, armature, armature_orig):
             anim_data["zOrder"] = {}
             anim_data["ffd"] = []
             animation_data["frame"] = []
+
+            # print("-------------->>>",anim.name,"-------------")
 
             ### append all slots to list
             ffd_keyframe_duration = {}
@@ -1303,18 +1379,6 @@ def _in_get_animation_data(self, sprite_object, armature, armature_orig):
                             ffd_keyframe_duration[slot2.mesh.name] = {"ffd_duration": 0}
                             ffd_last_frame_values[slot2.mesh.name] = None
 
-            #
-            #  timeline_event{
-            #       frame: int,
-            #       event:[
-            #           {
-            #               type: SOUND/ANIMATION/EVENT
-            #               target: 
-            #               value: int/float/string
-            #           }
-            #       ]
-            # }
-            #
             ### gather timeline events
             for i, timeline_event in enumerate(anim.timeline_events):
                 if i == 0:
@@ -1401,11 +1465,9 @@ def _in_get_animation_data(self, sprite_object, armature, armature_orig):
                         "last_pos": None,
                     }
 
-            # print("----> anim:", anim.name, " frame:", anim.frame_end)
             for i in range(begin_frame, end_frame + 1):
                 frame = end_frame - i
                 context.scene.frame_set(frame)
-                # print("--->>>>>>", anim.name, frame)
 
                 #### HANDLE SLOT ANIMATION
                 j = 0
@@ -1413,11 +1475,11 @@ def _in_get_animation_data(self, sprite_object, armature, armature_orig):
                     if slot.type == "MESH":
 
                         if restpose or _in_property_key_on_frame(slot, ["coa_tools2.z_value"], frame):
-                            # print("--->>>>>>", anim.name, slot.name, frame)
+
                             one_zorder = {}
                             one_zorder["duration"] = frame
                             one_zorder["zOrder"] = []
-                            one_zorder["zOrder"].append({"name":slot.name, "z":_in_get_z_order(self, slot)})
+                            one_zorder["zOrder"].append({"name":slot.name, "z":_in_get_z_value(self, slot)})
 
                             if "frame" not in anim_data["zOrder"]:
                                 anim_data["zOrder"]["frame"] = []
@@ -1444,8 +1506,8 @@ def _in_get_animation_data(self, sprite_object, armature, armature_orig):
                 #### HANDLE BONE ANIMATION
                 if armature != None:
                     for j, bone in enumerate(armature.data.bones):
-                        bone_orig = armature_orig.data.bones[bone.name]
-                        pose_bone_orig = armature_orig.pose.bones[bone.name]
+                        bone_orig = armature.data.bones[bone.name]
+                        pose_bone_orig = armature.pose.bones[bone.name]
                         const_len = len(pose_bone_orig.constraints)
                         in_ik_chain = pose_bone_orig.is_in_ik_chain
 
@@ -1465,8 +1527,6 @@ def _in_get_animation_data(self, sprite_object, armature, armature_orig):
                         tt_rot_duration = kv_bkd[bone.name]["rot_duration"]
                         tt_scale_duration = kv_bkd[bone.name]["scale_duration"]
 
-                        # if (bone.name == 'Root' and anim.name == 'Run'):
-                        #     print("frame:", tt_pos_duration)
                         bake_anim = (
                             self.scene.coa_tools2.export_bake_anim
                             and frame % self.scene.coa_tools2.export_bake_steps == 0
@@ -1474,8 +1534,8 @@ def _in_get_animation_data(self, sprite_object, armature, armature_orig):
 
                         ### bone position
                         if (
-                            _in_bone_key_on_frame(bone_orig,frame,armature_orig.animation_data,type="LOCATION",)
-                            or frame in [0, anim.frame_end]
+                            _in_bone_key_on_frame(bone_orig,frame,armature.animation_data,type="LOCATION",)
+                            # or frame in [0, anim.frame_end]
                             or const_len > 0
                             or in_ik_chain
                             or bake_anim or restpose  
@@ -1489,6 +1549,9 @@ def _in_get_animation_data(self, sprite_object, armature, armature_orig):
                             one_frame["curve"] = ([0.5, 0, 0.5, 1] if bake_anim == False else [0, 0, 1, 1])
                             one_frame["x"] = round(bone_pos[0], 2)
                             one_frame["y"] = round(bone_pos[1], 2)
+
+                            # if anim.name in tmp_anims and bone.name in tmp_bones:
+                            #     print("===>pos:", bone.name, frame, one_frame["x"], one_frame["y"])
 
                             
                             if frame in [0, anim.frame_end] or (kv_bkd[bone.name]["last_pos"] != [one_frame["x"], one_frame["y"]]):
@@ -1510,8 +1573,8 @@ def _in_get_animation_data(self, sprite_object, armature, armature_orig):
 
                         ### bone rotation
                         if (
-                            _in_bone_key_on_frame(bone_orig,frame,armature_orig.animation_data, type="ROTATION",)
-                            or frame in [0, anim.frame_end]
+                            _in_bone_key_on_frame(bone_orig,frame,armature.animation_data, type="ROTATION",)
+                            # or frame in [0, anim.frame_end]
                             or const_len > 0
                             or in_ik_chain
                             or bake_anim or restpose  
@@ -1519,19 +1582,15 @@ def _in_get_animation_data(self, sprite_object, armature, armature_orig):
                             bone_rot = _in_pose_bone_rotation(armature, bone, relative)
                             # bone_rot = (_in_pose_bone_rotation(armature, bone, relative) - self.armature_restpose[bone.name]["bone_rot"])
          
-                            # if bone_rot < -180:
-                            #     bone_rot = bone_rot + 180
-                            # elif bone_rot > 180:
-                            #     bone_rot = bone_rot - 180
-
                             one_frame = {}
                             one_frame["duration"] = tt_rot_duration
                             one_frame["curve"] = ([0.5, 0, 0.5, 1] if bake_anim == False else [0, 0, 1, 1])
                             one_frame["rotate"] = round(bone_rot, 2)
 
-                            # if (bone.name == 'Root' and anim.name == 'Run'):
-                            #         print("==>",bone.name,anim.name,"frame:", frame, bone_rot, self.armature_restpose[bone.name]["bone_rot"])
+                            # if anim.name in tmp_anims and bone.name in tmp_bones:
+                            #    print("===>rot:", bone.name, frame, one_frame["rotate"])
 
+        
                             if (frame in [0, anim.frame_end]) or (kv_bkd[bone.name]["last_rot"] != one_frame["rotate"]):
                                 ### if previous keyframe differs and keyframe duration is greater 1 add an extra keyframe inbetween
                                 if tt_rot_duration > 1 and (kv_bkd[bone.name]["last_rot"] != one_frame["rotate"]):
@@ -1544,10 +1603,6 @@ def _in_get_animation_data(self, sprite_object, armature, armature_orig):
 
                                         one_frame["duration"] = 1
 
-                                # FIXED
-                                if bone_orig.parent == None:
-                                    one_frame["rotate"] += 90
-
                                 keyframe_rotate = one_frame["rotate"]
                                 one_frame["rotate"] = round(math.radians(one_frame["rotate"]), 2)
                                 anim_data["bone"][j]["rotateFrame"].insert(0, one_frame)
@@ -1556,8 +1611,8 @@ def _in_get_animation_data(self, sprite_object, armature, armature_orig):
 
                         ### bone scale
                         if (
-                            _in_bone_key_on_frame(bone_orig,frame, armature_orig.animation_data,type="SCALE",)
-                            or frame in [0, anim.frame_end]
+                            _in_bone_key_on_frame(bone_orig, frame, armature.animation_data,type="SCALE",)
+                            # or frame in [0, anim.frame_end]
                             or const_len > 0
                             or in_ik_chain
                             or bake_anim or restpose  
@@ -1792,7 +1847,7 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
         key_texture_altas = ''
         
         self.sprite_object = get_sprite_object(context.active_object)
-        self.armature_orig = get_armature(self.sprite_object)
+        self.armature = get_armature(self.sprite_object)
         ### get export, project and json path
         
         texture_dir_path = to_linux_path(os.path.join(export_path, project_name + "_texture"))
@@ -1803,11 +1858,11 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
         path_scene_tscn = os.path.join(export_path, project_name + ".tscn")
 
         self.sprites = get_children(context, self.sprite_object, [])
-        self.sprites = sorted(
-            self.sprites, key=lambda obj: obj.location[1], reverse=True
-        )  ### sort objects based on the z depth. needed for draw order
-
-        self.armature = create_cleaned_armature_copy(self, self.armature_orig, self.sprites)
+        ### sort objects based on the z depth. needed for draw order
+        self.sprites = sorted(self.sprites, key=lambda obj: obj.location[1], reverse=True)  
+        ### create a cleaned copy of the armature that contains only deform bones and which has applied copy transform constraints
+        collect_armature_info(self, self.armature, self.sprites)
+        # self.armature = create_cleaned_armature_copy(self, self.armature_orig, self.sprites)
 
         is_atlas = self.scene.coa_tools2.export_image_mode == "ATLAS"
         is_images = self.scene.coa_tools2.export_image_mode == "IMAGES"
@@ -1818,7 +1873,7 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
         if is_atlas:
             sprites = [sprite for sprite in self.sprites if sprite.type == "MESH"]
             if len(sprites) > 0:
-                texture_atlas = generate_texture_atlas(
+                texture_atlas = _in_generate_texture_atlas(
                     self,
                     sprites,
                     project_name,
@@ -1836,7 +1891,7 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
                 atlas_name = texture_atlas["imagePath"]
 
                 atlas_texture_path = export_path + "/" + atlas_name
-                key_texture_altas = _in_get_key()
+                key_texture_altas = f"1_{_in_get_key()}"
 
                 kv_textures[atlas_name] = {"path":atlas_texture_path,"key":key_texture_altas}
 
@@ -1869,13 +1924,12 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
 
             rs_ext.append(f"[ext_resource type=\"Texture2D\" path=\"res://{upath}\" id=\"{ukey}\"]")
 
-        rs_ext.append("\n")
         #=============================
         #  animation
         #=============================
         if self.armature != None:
             self.armature.data.pose_position = "REST"
-            self.armature_orig.data.pose_position = "REST"
+            # self.armature_orig.data.pose_position = "REST"
 
         tmp_fps = self.scene.render.fps
         frame_time = 1.0/tmp_fps
@@ -1921,18 +1975,22 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
 
         if self.armature != None:
             self.armature.data.pose_position = "POSE"
-            self.armature_orig.data.pose_position = "POSE"
+            # self.armature_orig.data.pose_position = "POSE"
             
-        tmp_anim_array = _in_get_animation_data(self, self.sprite_object, self.armature, self.armature_orig)
+        # tmp_anim_array = _in_get_animation_data(self, self.sprite_object, self.armature, self.armature_orig)
+        tmp_anim_array = _in_get_animation_data(self, self.sprite_object, self.armature)
         #========
         # animation & # animation library
-        
+        is_has_event = False
         tmp_anim_rs = []
         rs_anim = []
         for tmp_ad in tmp_anim_array:
             
             uduration = tmp_ad["duration"]
             uname = tmp_ad['name']
+
+            # print("------",uname)
+            # print(tmp_ad)
 
             if (uname == 'Restpose'): ## for godot reset anim
                 uname = 'RESET'
@@ -2052,9 +2110,13 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
 
             for tmp_bone in ubone:
                 ubone_name = tmp_bone["name"]
-                translateFrames = tmp_bone["translateFrame"]
-                rotateFrames = tmp_bone["rotateFrame"]
-                scaleFrames = tmp_bone["scaleFrame"]
+                translateFrames = []
+                rotateFrames = []
+                scaleFrames = []
+
+                if 'translateFrame' in tmp_bone: translateFrames = tmp_bone["translateFrame"]
+                if 'rotateFrame' in tmp_bone: rotateFrames = tmp_bone["rotateFrame"]
+                if 'scaleFrame' in tmp_bone: scaleFrames = tmp_bone["scaleFrame"]
 
                 translateFrames.sort(key=lambda x:x["duration"])
                 rotateFrames.sort(key=lambda x:x["duration"])
@@ -2111,7 +2173,6 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
             ii = mix_string(ii, bone_rot_dict, rs_anim)
             ii = mix_string(ii, bone_sca_dict, rs_anim)
 
-            is_has_event = False
             #######======> events <========
             format_str = "{\"args\": [\"{0}\", \"{1}\"],\"method\": &\"handle_events\"}"
             for tmp_event in uframeEvents:
@@ -2165,8 +2226,10 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
         rs_node_begin = []
         rs_node_begin.append("[node name=\"Node2D\" type=\"Node2D\" ]")
         if (is_has_event):
-            key_gdscript = _in_get_key()
+            key_gdscript = f"{len(rs_ext) + 1}_{_in_get_key()}"
             rs_node_begin.append(f"script = ExtResource(\"{key_gdscript}\")")
+            rs_node_begin.append("")
+
             script_name = project_name + ".gd"
             upath = to_join_path(texture_prefix, script_name)
             rs_ext.append(f"[ext_resource type=\"Script\" path=\"res://{upath}\" id=\"{key_gdscript}\"]")
@@ -2188,9 +2251,8 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
             pass
         
 
-        rs_node_begin.append("[node name=\"Skeleton2D\" type=\"Skeleton2D\" parent=\".\" ]")
-        rs_node_begin.append("\n")
-        
+        rs_node_begin.append("[node name=\"Skeleton2D\" type=\"Skeleton2D\" parent=\".\" ]\n")
+
         # #========
         # meshs
         rs_skin = []
@@ -2338,7 +2400,9 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
         rs_player.append("callback_mode_process = 0")
         rs_player.append(f"libraries/ = SubResource(\"AnimationLibrary_{tmp_anim_lib_key}\")")
         rs_player.append("")
-      
+
+        rs_ext.append("\n")
+
         rs_scene += rs_ext
         rs_scene += rs_anim
         rs_scene += rs_node_begin
@@ -2351,14 +2415,7 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
         text_file.write(str_out_scene)
         text_file.close()
 
-        ### cleanup scene
-        self.set_init_state(context)  ### restore initial object selection
-        if self.armature != None:
-            bpy.data.objects.remove(self.armature)  ### delete copied armature
-
-        for key in tmp_slots_data:
-            bpy.data.objects.remove(tmp_slots_data[key]["object"], do_unlink=True)
-
+        self.set_init_state(context)
         self.scene.coa_tools2.nla_mode = coa_nla_mode
 
         # cleanup scene and add an undo history step
@@ -2369,7 +2426,7 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
         self.report({"INFO"}, "Export successful.")
         return {"FINISHED"}
 
-def generate_texture_atlas(
+def _in_generate_texture_atlas(
     self,
     sprites,
     atlas_name,
