@@ -1704,6 +1704,7 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
 
         tmp_img_width = self.scene.coa_tools2.atlas_resolution_x
         tmp_img_height = self.scene.coa_tools2.atlas_resolution_y
+        tmp_export_ik = self.scene.coa_tools2.export_ik
 
         tmp_anim_lib_key = _in_get_key()
 
@@ -2230,15 +2231,16 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
         # #========
         # # bones SkeletonModification2DCCDIK
         rs_sub_ik = []
-        tmp_ik_bone_array = []
-        for pose_bone_name in bone_uses_constraints:
-            if bone_uses_constraints[pose_bone_name]:
-                tmp_ik_bone_array.append(pose_bone_name)
+        if tmp_export_ik:
+            tmp_ik_bone_array = []
+            for pose_bone_name in bone_uses_constraints:
+                if bone_uses_constraints[pose_bone_name]:
+                    tmp_ik_bone_array.append(pose_bone_name)
 
-        print(tmp_ik_bone_array)
-        is_has_ik,key_stack_ik = _in_mix_SkeletonModification2DCCDIK(self.armature, tmp_ik_bone_array, rs_sub_ik)
-        if (is_has_ik):
-            rs_node_begin.append(f"modification_stack = SubResource(\"{key_stack_ik}\")")
+            # print(tmp_ik_bone_array)
+            is_has_ik,key_stack_ik = _in_mix_SkeletonModification2DCCDIK(self.armature, tmp_ik_bone_array, rs_sub_ik)
+            if (is_has_ik):
+                rs_node_begin.append(f"modification_stack = SubResource(\"{key_stack_ik}\")")
 
         rs_node_begin.append("")
         

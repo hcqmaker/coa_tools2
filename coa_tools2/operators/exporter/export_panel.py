@@ -75,6 +75,9 @@ class COATOOLS2_PT_ExportPanel(bpy.types.Panel):
             if self.scene.coa_tools2.export_bake_anim:
                 subrow.prop(self.scene.coa_tools2, "export_bake_steps")
 
+        if runtime_format == "GODOTSCENE":
+            box_col.prop(self.scene.coa_tools2, "export_ik")
+
         if runtime_format != "GODOTSCENE":
             box_col.prop(self.scene.coa_tools2, "minify_json")
         box_col.prop(self.scene.coa_tools2, "armature_scale")

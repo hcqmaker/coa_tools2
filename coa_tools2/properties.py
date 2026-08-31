@@ -554,6 +554,7 @@ class SceneProperties(bpy.types.PropertyGroup):
     export_square_atlas: bpy.props.BoolProperty(default=True, name="Force Square Texture Atlas", description="This option makes sure the exported Atlas is always perfectly squared.")
     export_texture_bleed: bpy.props.IntProperty(default=0, min=0, name="Texture Bleeding", subtype="PIXEL", description="Defines how far the texture extends the mesh boundaries.")
     armature_scale: bpy.props.FloatProperty(default=1.0, min=0.1, name="Armature Output Scale", description="Define the Armature Output Scale", step=0.1)
+    export_ik:bpy.props.BoolProperty(default=False, name="Export IK Data", description="Export IK Data use Godot SkeletonModification2D .")
 
     outliner_filter_names: StringProperty(update=update_filter, options={'TEXTEDIT_UPDATE'})
     outliner_favorites:BoolProperty(default=False)
