@@ -145,6 +145,10 @@ img_names = {}  ### exported image names
 tmp_slots_data = {}
 
 
+def _in_use_constraint(pose_bone_name):
+    if pose_bone_name in bone_uses_constraints and bone_uses_constraints[pose_bone_name]:
+        return True
+    return False
 
 def _in_get_key():
     dt = int(time.time() * 1000 + random.random() * 1000)
@@ -234,18 +238,6 @@ def _in_copy_textures(self, sprites, texture_dir_path, tmp_kv):
                         img.save_render(dst_path)
 
 
-
-### get edge information
-def _in_get_edge_data(bm, only_outer_edges=True):
-    edges = []
-    for edge in bm.edges:
-        if (edge.is_boundary and only_outer_edges) or (
-            not edge.is_boundary and not only_outer_edges
-        ):
-            for i, vert in enumerate(edge.verts):
-                edges.append(vert.index)
-    return edges
-
 def _in_get_polygons_data(sprite):
     polygons = []
     mesh = sprite.data
@@ -253,23 +245,6 @@ def _in_get_polygons_data(sprite):
         # polygon_vertices = [vertex for vertex in polygon.vertices]
         polygons.append(f"PackedInt32Array({join_array(polygon.vertices)})")
     return polygons
-
-def _in_get_faces_data(bm):
-    faces = []
-    for face in bm.faces:
-        one_face = []
-        for i, vert in enumerate(face.verts):
-            one_face.append(str(vert.index))
-        faces.append("PackedInt32Array(" + ",".join(one_face) + ")")
-    return faces
-
-### get triangle information
-def _in_get_triangle_data(bm):
-    triangles = []
-    for face in bm.faces:
-        for i, vert in enumerate(face.verts):
-            triangles.append(vert.index)
-    return triangles
 
 
 ### get mesh vertex corrseponding uv vertex
@@ -378,16 +353,6 @@ def _in_remove_base_sprite(obj):
     bm = bmesh.update_edit_mesh(obj.data)
     bpy.ops.object.mode_set(mode="OBJECT")
 
-def _in_get_bone_index(self, armature, bone_name):
-    armature_bones = []
-    for bone in armature.data.bones:
-        armature_bones.append(bone)
-
-    for i, bone in enumerate(armature_bones):
-        if bone_name == bone.name:
-            return i
-
-
 
 ### get weight data
 def _in_get_bone_weight_data(self, obj, armature):
@@ -412,24 +377,6 @@ def _in_get_bone_weight_data(self, obj, armature):
             weights[use_bname][vert.index] = str(bone_weight)
 
     return weights
-
-def _in_get_bone_with_most_influence(self, sprite):
-    vertex_groups = sprite.vertex_groups
-    max_weight = 0
-    bone = None
-    for v_group in vertex_groups:
-        if v_group.name in self.armature.data.bones:
-            total_weight = 0
-            for i, vert in enumerate(sprite.data.vertices):
-                try:
-                    total_weight += v_group.weight(vert.index)
-                except:
-                    pass
-            if total_weight > max_weight:
-                max_weight = float(total_weight)
-                bone = self.armature.data.bones[v_group.name]
-    return bone
-
 
 def _in_get_get_mesh_center(sprite, scale):
     average_vert = Vector((0, 0, 0))
@@ -588,39 +535,6 @@ def _in_get_skin_slot(self, sprite, armature, scale, slot_data=None):
     # bpy.data.objects.remove(sprite,do_unlink=True)
     return display_data
 
-### get slot data
-def _in_get_slot_data(self, sprites):
-    slot_data = []
-    for sprite in sprites:
-        if sprite.type == "MESH":
-            slot = OrderedDict()
-            slot["name"] = sprite.name
-            if len(sprite.data.vertices) != 4:
-                slot["parent"] = self.sprite_object.name  # sprite.parent.name
-            else:
-                bone_parent = _in_get_bone_with_most_influence(self, sprite)
-                if bone_parent != None:
-                    slot["parent"] = bone_parent.name
-                else:
-                    slot["parent"] = self.sprite_object.name
-
-            slot_data.append(slot)
-
-            if len(sprite.coa_tools2.slot) > 0:
-                slot["displayIndex"] = sprite.coa_tools2.slot_index
-
-            color = _in_get_modulate_color(sprite)
-            if (
-                color["rM"] != 100
-                or color["gM"] != 100
-                or color["bM"] != 100
-                or color["aM"] != 100
-            ):
-                slot["color"] = color
-    return slot_data
-
-
-
 def _in_get_skin_data(self, sprites, armature, scale):
     context = bpy.context
 
@@ -649,46 +563,6 @@ def _in_get_skin_data(self, sprites, armature, scale):
 
             skin_data[0]["slot"].append(slot_data)
     return skin_data
-
-
-def _in_get_bone_matrix(armature, bone, relative=True):
-    pose_bone = armature.pose.bones[bone.name]
-
-    m = Matrix()  ### inverted posebone origin matrix
-    m.row[0] = [0, 0, 1, 0]
-    m.row[1] = [1, 0, 0, 0]
-    m.row[2] = [0, 1, 0, 0]
-    m.row[3] = [0, 0, 0, 1]
-
-    if bone.parent == None:
-        mat_bone_space = m @ pose_bone.matrix
-    else:
-        if relative:
-            # if bone.use_inherit_rotation and bone.use_inherit_scale:
-            # mat_bone_space = pose_bone.parent.matrix.inverted() @ pose_bone.matrix
-            mat_bone_space = pose_bone.matrix
-            for parent in pose_bone.parent_recursive:
-                pose_bone_matrix = parent.matrix.inverted() @ mat_bone_space
-                mat_bone_space = pose_bone.parent.matrix.inverted() @ pose_bone.matrix
-        else:
-            mat_bone_space = m @ pose_bone.matrix
-    #### remap matrix
-    loc, rot, scale = mat_bone_space.decompose()
-
-    # if not bone.use_inherit_scale:
-    #    scale = (m * pose_bone.matrix).decompose()[2]
-
-    loc_mat = Matrix.Translation(loc)
-
-    rot_mat = rot.inverted().to_matrix().to_4x4()
-
-    scale_mat = Matrix()
-    scale_mat[0][0] = scale[1]
-    scale_mat[1][1] = scale[0]
-    scale_mat[2][2] = scale[2]
-    mat_bone_space = loc_mat @ rot_mat @ scale_mat
-    return mat_bone_space
-
 
 edit_bone_matrices = {}
 def get_edit_bones(armature, context):
@@ -723,52 +597,6 @@ def _in_get_bone_transformation(armature, bone):
         scale_mat[2][2] = scale[2]
         mat_local = (mat_local @ (edit_bone_matrix @ scale_mat).inverted()) @ scale_mat
         return mat_local
-
-
-def _in_get_bone_angle(armature, bone, relative=True):
-    loc, rot, scale = _in_get_bone_matrix(armature, bone, relative).decompose()
-    rot_x = round(math.degrees(rot.to_euler().x), 2)
-    rot_y = round(math.degrees(rot.to_euler().y), 2)
-    rot_z = -round(math.degrees(rot.to_euler().z), 2)
-    #    if get_bone_scale(armature,bone)[0] < 0:
-    #        rot_z = - rot_z
-    return rot_z
-
-
-def _in_get_bone_pos(armature, bone, scale, relative=True):
-    loc, rot, sca = _in_get_bone_matrix(armature, bone, relative).decompose()
-
-    # pos_2d = (
-    #     Vector((loc[1], -loc[0])) * scale
-    # )  # flip x and y and negate x to fit dragonbones coordinate system
-    pos_2d = (
-            Vector((loc[0], -loc[1])) * scale
-        ) 
-
-    return pos_2d
-
-def _in_get_bone_scale(armature, bone, relative=True):
-    mat = _in_get_bone_matrix(armature, bone)
-    loc, rot, scale = _in_get_bone_matrix(armature, bone, relative).decompose()
-    return scale
-
-def _in_get_pose_bone_angle(armature, bone, relative=True):
-    pose_bone = armature.pose.bones[bone.name]
-    rot = Vector(tuple(pose_bone.rotation_euler))
-    # print("===>", rot)
-    return -round(math.degrees(rot.z), 2)
-
-
-def _in_get_pose_bone_scale(armature, bone, relative=True):
-    pose_bone = armature.pose.bones[bone.name]
-    scale = pose_bone.scale
-    return scale
-
-def _in_get_pose_bone_pos(armature, bone, scale, relative=True):
-    pose_bone = armature.pose.bones[bone.name]
-    loc = pose_bone.location
-    pos_2d = (Vector((loc[0], loc[1])) * scale)
-    return pos_2d
 
 
 #########-------->>>-------------
@@ -832,12 +660,8 @@ def _in_pose_bone_rotation(armature, bone, relative=True):
     pose_bone = armature.pose.bones[bone.name]
 
     bone_euler_rot = pose_bone.rotation_quaternion.to_euler()
-    dir = 1
-    if bone.parent == None:
-        dir = 1
-    else:
-        dir = -1
-    degrees = round(math.degrees(bone_euler_rot.z), 2) * dir
+
+    degrees = round(math.degrees(bone_euler_rot.z), 2)
     return degrees#math.radians(degrees)
 
 def _in_pose_bone_scale(armature, bone, relative=True):
@@ -848,6 +672,68 @@ def _in_pose_bone_scale(armature, bone, relative=True):
     return bone_scale_2d
 
 #########--------<<<-------------
+
+
+def _in_get_chains_num(pose_bone, num):
+    tmp_parents = [x.name for x in (pose_bone.parent_recursive)]
+    if num > 0:
+        rs_parents = [pose_bone.name]
+        for i in range(0, num-1):
+            rs_parents.append(tmp_parents[i])
+        return rs_parents
+    if (num == 0):
+        return tmp_parents
+    return []
+
+
+def _in_get_ik_bones_info(armature, ik_bones):
+    rs_ik_info = []
+
+    ik_dict = {} # key: target, value:{"subtarget":}
+    ik_transform_dict = {}
+
+    ik_use_types = {'COPY_LOCATION','COPY_ROTATION','COPY_SCALE'}
+
+    for i,pose_name in enumerate(ik_bones):
+        pbone = armature.pose.bones[pose_name]
+        # lnum = len(pbone.constraints)
+
+        for j,constr in enumerate(pbone.constraints):
+
+            ctr_type = constr.type
+            # ctr_target = constr.target
+            ctr_subtarget = constr.subtarget
+
+            if (ctr_type == 'IK'):
+                ik_dict[ctr_subtarget] = {"bone_name":pose_name, "chain_bones":_in_get_chains_num(pbone, constr.chain_count)}
+            elif ctr_type in ik_use_types:
+                if (ctr_subtarget not in ik_transform_dict):
+                    ik_transform_dict[ctr_subtarget] = {"bone_name":pose_name}
+                if ctr_type == 'COPY_LOCATION':
+                    ik_transform_dict[ctr_subtarget]['loc'] = True
+                if ctr_type == 'COPY_ROTATION':
+                    ik_transform_dict[ctr_subtarget]['rot'] = True
+                if ctr_type == 'COPY_SCALE':
+                    ik_transform_dict[ctr_subtarget]['sca'] = True
+
+    for ik_bone_name in ik_transform_dict:
+        val_tran = ik_transform_dict[ik_bone_name]
+        use_ik_bone = val_tran["bone_name"]
+        one_ik_info = {}
+        one_ik_info["target"] = ik_bone_name
+        one_ik_info["tip"] = use_ik_bone
+        if (ik_bone_name in ik_dict):
+            val = ik_dict[ik_bone_name]
+            chain_bones = val["chain_bones"]
+            chain_array = []
+            for bone_name in chain_bones:
+                chain_array.append(bone_name)
+            if (len(chain_array) > 0):
+                one_ik_info["chains"] = chain_array
+                rs_ik_info.append(one_ik_info)
+
+    return rs_ik_info
+
 
 def _in_get_bone_data(self, armature, sprite_object, scale):
     bone_data = []
@@ -1178,78 +1064,6 @@ def bone_is_constraint_target(bone, armature):
     return False
 
 
-def check_deform_bones(self, armature, sprites):
-    global bone_uses_constraints
-    bone_uses_constraints = {}
-    context = bpy.context
-    context.view_layer.objects.active = armature
-
-    bpy.ops.object.mode_set(mode="EDIT")
-
-    for bone in armature.data.bones:
-        pbone = armature.pose.bones[bone.name]
-        ebone = armature.data.edit_bones[bone.name]
-        bone_uses_constraints[pbone.name] = check_if_bone_uses_constraints(pbone)
-        # if pbone.is_in_ik_chain or len(pbone.constraints) > 0:
-        #     ebone.parent = None
-
-        # is_deform_bone = bone_is_deform_bone(self, bone, sprites)
-        # is_driver = bone_is_driver(bone, sprites)
-        # is_const_target = bone_is_constraint_target(bone, armature)
-        # has_children = len(bone.children) > 0
-
-        # if (
-        #     (not is_deform_bone and is_driver)
-        #     or (not is_deform_bone and is_const_target)
-        #     or (not is_deform_bone and not has_children)
-        #     or (not is_deform_bone and not bone.use_deform)
-        # ):
-        #     armature.data.edit_bones.remove(armature.data.edit_bones[bone.name])
-
-    bpy.ops.object.mode_set(mode="OBJECT")
-
-def delete_non_deform_bones(self, armature, sprites):
-    global bone_uses_constraints
-    bone_uses_constraints = {}
-    context = bpy.context
-    context.view_layer.objects.active = armature
-
-    bpy.ops.object.mode_set(mode="EDIT")
-
-    for bone in armature.data.bones:
-        pbone = armature.pose.bones[bone.name]
-        ebone = armature.data.edit_bones[bone.name]
-        bone_uses_constraints[pbone.name] = check_if_bone_uses_constraints(pbone)
-        # if pbone.is_in_ik_chain or len(pbone.constraints) > 0:
-        #     ebone.parent = None
-
-        is_deform_bone = bone_is_deform_bone(self, bone, sprites)
-        is_driver = bone_is_driver(bone, sprites)
-        is_const_target = bone_is_constraint_target(bone, armature)
-        has_children = len(bone.children) > 0
-
-        if (
-            (not is_deform_bone and is_driver)
-            or (not is_deform_bone and is_const_target)
-            or (not is_deform_bone and not has_children)
-            or (not is_deform_bone and not bone.use_deform)
-        ):
-            armature.data.edit_bones.remove(armature.data.edit_bones[bone.name])
-
-    bpy.ops.object.mode_set(mode="OBJECT")
-
-
-def create_copy_transform_constraints(self, armature_from, armature_to):
-    for bone in armature_to.pose.bones:
-        for const in bone.constraints:
-            bone.constraints.remove(const)
-        if bone.name in armature_from.pose.bones:
-            const = bone.constraints.new("COPY_TRANSFORMS")
-            const.target = armature_from
-            const.subtarget = bone.name
-            const.target_space = "POSE"
-            const.owner_space = "POSE"
-
 
 def collect_armature_info(self, armature, sprites):
 # def create_cleaned_armature_copy(self, armature, sprites):
@@ -1257,21 +1071,8 @@ def collect_armature_info(self, armature, sprites):
     if armature != None:
         scene = bpy.context.scene
 
-        # armature_data = armature.data.copy()
-        # armature_copy = armature.copy()
-        # armature_copy.data = armature_data
-        # armature_copy.name = "COA_EXPORT_ARMATURE"
-
-        # context.collection.objects.link(armature_copy)
-
-        # delete_non_deform_bones(self, armature_copy, sprites)
-        # create_copy_transform_constraints(self, armature, armature_copy)
-
         ### store armature rest position. Relevant for later animation calculations
         scale = 1 / get_addon_prefs(context).sprite_import_export_scale
-
-        # check_deform_bones(self, armature, sprites)
-        # get_edit_bones(armature, context)
 
         global edit_bone_matrices
         edit_bone_matrices = {}
@@ -1296,7 +1097,7 @@ def collect_armature_info(self, armature, sprites):
         bpy.context.scene.frame_set(bpy.context.scene.frame_current)
         for bone in armature.data.bones:
             pose_bone = armature.pose.bones[bone.name]
-            relative = True if bone.name in bone_uses_constraints else False
+            relative = True if _in_use_constraint(pose_bone.name) else False
     
             transformations = {}
             transformations["bone_pos"] = _in_rest_bone_location(armature, pose_bone, scale)
@@ -1304,11 +1105,8 @@ def collect_armature_info(self, armature, sprites):
             transformations["bone_scale"] = _in_reset_bone_scale(armature, bone, relative)
 
             self.armature_restpose[bone.name] = transformations
-        # armature_copy.data.pose_position = "POSE"
+        
         armature.data.pose_position = "POSE"
-        # return armature_copy
-    # return None
-
 
 # def _in_get_animation_data(self, sprite_object, armature, armature_orig):
 def _in_get_animation_data(self, sprite_object, armature):
@@ -1361,12 +1159,10 @@ def _in_get_animation_data(self, sprite_object, armature):
             ffd_keyframe_duration = {}
             ffd_last_frame_values = {}
 
-            z_order_defaults = {}
 
             for slot in self.sprites:
                 if slot.type == "MESH":
                     anim_data["slot"].append({"name": slot.name, "colorFrame": [], "displayFrame": []})
-                    z_order_defaults[slot.name] = {"zOrder": _in_get_z_order(self, slot)}
 
                     if slot.coa_tools2.type == "MESH":
                         anim_data["ffd"].append({"name": slot.data.name, "slot": slot.name, "frame": []})
@@ -1511,7 +1307,7 @@ def _in_get_animation_data(self, sprite_object, armature):
                         const_len = len(pose_bone_orig.constraints)
                         in_ik_chain = pose_bone_orig.is_in_ik_chain
 
-                        relative = True if bone.name in bone_uses_constraints else False
+                        relative = True if _in_use_constraint(pose_bone_orig.name) else False
 
 
                         if (i == start_frame):
@@ -1541,7 +1337,6 @@ def _in_get_animation_data(self, sprite_object, armature):
                             or bake_anim or restpose  
                         ):
 
-                            # bone_pos = (_in_get_bone_pos(armature, bone, scale) - self.armature_restpose[bone.name]["bone_pos"])
                             bone_pos = (_in_pose_bone_location(armature, bone, scale))
 
                             one_frame = {}
@@ -1740,28 +1535,117 @@ def _get_bone_base(self, bone_name):
     pose_bone = self.armature.pose.bones[bone_name]
     tmp_paths = []
     tmp_paths += [x.name for x in reversed(pose_bone.parent_recursive)] + [bone_name]
-    return "/".join(tmp_paths)
+    return _str_name("/".join(tmp_paths))
 
-def _get_sprite_parents(self, arm_name, sprite_name):
+def _get_sprite_parents(armature, arm_name, sprite_name):
     if sprite_name not in bpy.data.objects:
         return ''
     sprite = bpy.data.objects[sprite_name]
     if sprite.parent is not None:
-        if sprite.parent.name in self.armature.pose.bones:
-            return _get_bone_path(self, arm_name, sprite.parent.name)
+        if sprite.parent.name in armature.pose.bones:
+            return _get_bone_path(armature, arm_name, sprite.parent.name)
     return arm_name
 
-def _get_bone_parents(self, arm_name, bone_name):
-    pose_bone = self.armature.pose.bones[bone_name]
+def _get_bone_parents(armature, arm_name, bone_name):
+    pose_bone = armature.pose.bones[bone_name]
     tmp_paths = []
     tmp_paths += [arm_name] + [x.name for x in reversed(pose_bone.parent_recursive)]
-    return "/".join(tmp_paths)
+    return _str_name("/".join(tmp_paths))
 
-def _get_bone_path(self, arm_name, bone_name):
-    pose_bone = self.armature.pose.bones[bone_name]
+def _get_bone_path(armature, arm_name, bone_name):
+    pose_bone = armature.pose.bones[bone_name]
     tmp_paths = []
-    tmp_paths += [arm_name] + [x.name for x in reversed(pose_bone.parent_recursive)] + [bone_name]
-    return "/".join(tmp_paths)
+    if (arm_name != '' and arm_name != None):
+        tmp_paths += [arm_name]
+    tmp_paths +=  [x.name for x in reversed(pose_bone.parent_recursive)] + [bone_name]
+    return _str_name("/".join(tmp_paths))
+
+def _get_bone_index(armature, bone_name):
+    pose_bone = armature.pose.bones[bone_name]
+    return len(pose_bone.parent_recursive)
+
+def _in_mix_AnimationArray_string(ii, dict, rs):
+    for sn in dict:
+        sd = dict[sn]
+        vals = sd['values']
+        # if (len(sd['times']) != len(vals)):
+        #     print(sd['path'])
+        if (len(vals) > 0):
+            rs += (
+                f"tracks/{ii}/type = \"value\"",
+                f"tracks/{ii}/imported = false",
+                f"tracks/{ii}/enabled = true",
+                f"tracks/{ii}/path = NodePath(\"{sd['path']}\")",
+                f"tracks/{ii}/interp = 1",
+                f"tracks/{ii}/loop_wrap = true",
+                "tracks/"+str(ii)+"/keys = {",
+                f"\"times\": PackedFloat32Array({", ".join(sd['times'])}),",
+                f"\"transitions\": PackedFloat32Array({", ".join(sd['transitions'])}),",
+                f"\"update\": 0,",
+                f"\"values\": [{", ".join(vals)}], ",
+                "}",
+                "",
+            )
+            ii += 1
+    return ii
+
+
+## KinematicConstraint
+def _in_mix_SkeletonModification2DCCDIK(armature, ik_bones, rs):
+    tmp_ik_infos = _in_get_ik_bones_info(armature, ik_bones)
+    len_ik = len(tmp_ik_infos)
+    rs_next = []
+    rs_out = []
+    if (len_ik > 0):
+        for i, info in enumerate(tmp_ik_infos):
+
+            key_sub_ik = f"SkeletonModification2DCCDIK_{_in_get_key()}"
+            rs_next.append(f"modifications/{i} = SubResource(\"{key_sub_ik}\")")
+
+            n_target = info["target"]
+            n_tip = info["tip"]
+            n_chains = info["chains"]
+
+            # bone = armature.data.bones[pose_name]
+            target_nodepath = _get_bone_path(armature, '', n_target) #f"Bone/IK_Top_R_02_001" 
+            tip_nodepath = _get_bone_path(armature, '', n_tip)#f"Bone/Root/Middle/Top/Top_R_01/Top_R_02/Top_R_02_001"
+
+            lnum = len(n_chains)
+
+            rs_out += (
+                f"[sub_resource type=\"SkeletonModification2DCCDIK\" id=\"{key_sub_ik}\"]",
+                f"enabled = true",
+                f"target_nodepath = NodePath(\"{target_nodepath}\")",
+                f"tip_nodepath = NodePath(\"{tip_nodepath}\")",
+                f"ccdik_data_chain_length = {lnum}",
+            )
+
+            for j,pose_name in enumerate(n_chains):
+                path_chain = _get_bone_path(armature, '', pose_name)#'Bone/Root/Middle/Top/Top_R_01'
+                bone_index = _get_bone_index(armature, pose_name)
+                rs_out += (
+                    f"joint_data/{j}/bone_index = {bone_index}",
+                    f"joint_data/{j}/bone2d_node = NodePath(\"{path_chain}\")",
+                    f"joint_data/{j}/rotate_from_joint = false",
+                    f"joint_data/{j}/enable_constraint = false",
+                    f"joint_data/{j}/editor_draw_gizmo = true",
+                )
+
+        rs_out.append("")
+        key_stack_ik = f"SkeletonModificationStack2D_{_in_get_key()}"
+
+        rs_out += (
+            f"[sub_resource type=\"SkeletonModificationStack2D\" id=\"{key_stack_ik}\"]",
+            f"enabled = true",
+            f"modification_count = {len_ik}",
+        )
+
+        rs_out += rs_next
+        rs_out.append("")
+
+        rs += rs_out
+        return True,key_stack_ik
+    return False,''
 
 class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
     bl_idname = "coa_tools2.export_godot_tscn"
@@ -1929,7 +1813,6 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
         #=============================
         if self.armature != None:
             self.armature.data.pose_position = "REST"
-            # self.armature_orig.data.pose_position = "REST"
 
         tmp_fps = self.scene.render.fps
         frame_time = 1.0/tmp_fps
@@ -1938,44 +1821,17 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
         kv_bone_path = {}
         kv_bone_base_path = {}
         for bone in self.armature.data.bones:
-            bone_path = _get_bone_path(self, 'Skeleton2D', bone.name)
+            bone_path = _get_bone_path(self.armature, 'Skeleton2D', bone.name)
             kv_bone_path[bone.name] = bone_path
             kv_bone_base_path[bone.name] = _get_bone_base(self, bone.name)
 
-        # tmp_slot_array = _in_get_slot_data(self, self.sprites)
-        
         tmp_skin_array = _in_get_skin_data(self, self.sprites, self.armature, self.scale)  
         tmp_bone_array = _in_get_bone_data(self, self.armature, self.sprite_object, self.scale)
 
 
-        def mix_string(ii, dict, rs):
-            for sn in dict:
-                sd = dict[sn]
-                vals = sd['values']
-                # if (len(sd['times']) != len(vals)):
-                #     print(sd['path'])
-                if (len(vals) > 0):
-                    rs += (
-                        f"tracks/{ii}/type = \"value\"",
-                        f"tracks/{ii}/imported = false",
-                        f"tracks/{ii}/enabled = true",
-                        f"tracks/{ii}/path = NodePath(\"{sd['path']}\")",
-                        f"tracks/{ii}/interp = 1",
-                        f"tracks/{ii}/loop_wrap = true",
-                        "tracks/"+str(ii)+"/keys = {",
-                        f"\"times\": PackedFloat32Array({", ".join(sd['times'])}),",
-                        f"\"transitions\": PackedFloat32Array({", ".join(sd['transitions'])}),",
-                        f"\"update\": 0,",
-                        f"\"values\": [{", ".join(vals)}], ",
-                        "}",
-                        "",
-                    )
-                    ii += 1
-            return ii
 
         if self.armature != None:
             self.armature.data.pose_position = "POSE"
-            # self.armature_orig.data.pose_position = "POSE"
             
         # tmp_anim_array = _in_get_animation_data(self, self.sprite_object, self.armature, self.armature_orig)
         tmp_anim_array = _in_get_animation_data(self, self.sprite_object, self.armature)
@@ -2035,7 +1891,7 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
                         slot_frame_dict[slot_name]["transitions"].append("1")
                         slot_frame_dict[slot_name]["values"].append(str(slot_z))
 
-                ii = mix_string(ii, slot_frame_dict, rs_anim)
+                ii = _in_mix_AnimationArray_string(ii, slot_frame_dict, rs_anim)
 
             #######======> color & display <========
             slot_color_dict = {}
@@ -2096,10 +1952,10 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
                 
                 pass
 
-            ii = mix_string(ii, slot_color_dict, rs_anim)
+            ii = _in_mix_AnimationArray_string(ii, slot_color_dict, rs_anim)
 
             # TODO unfinish
-            ### ii = mix_string(ii, slot_display_dict, rs_anim)
+            ### ii = _in_mix_AnimationArray_string(ii, slot_display_dict, rs_anim)
             
 
             #######======> bone pose <========
@@ -2169,9 +2025,9 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
 
                 pass
 
-            ii = mix_string(ii, bone_loc_dict, rs_anim)
-            ii = mix_string(ii, bone_rot_dict, rs_anim)
-            ii = mix_string(ii, bone_sca_dict, rs_anim)
+            ii = _in_mix_AnimationArray_string(ii, bone_loc_dict, rs_anim)
+            ii = _in_mix_AnimationArray_string(ii, bone_rot_dict, rs_anim)
+            ii = _in_mix_AnimationArray_string(ii, bone_sca_dict, rs_anim)
 
             #######======> events <========
             format_str = "{\"args\": [\"{0}\", \"{1}\"],\"method\": &\"handle_events\"}"
@@ -2251,7 +2107,7 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
             pass
         
 
-        rs_node_begin.append("[node name=\"Skeleton2D\" type=\"Skeleton2D\" parent=\".\" ]\n")
+        rs_node_begin.append("[node name=\"Skeleton2D\" type=\"Skeleton2D\" parent=\".\" ]")
 
         # #========
         # meshs
@@ -2370,7 +2226,22 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
                         rs_skin.append("")
                     pass
 
-            
+
+        # #========
+        # # bones SkeletonModification2DCCDIK
+        rs_sub_ik = []
+        tmp_ik_bone_array = []
+        for pose_bone_name in bone_uses_constraints:
+            if bone_uses_constraints[pose_bone_name]:
+                tmp_ik_bone_array.append(pose_bone_name)
+
+        print(tmp_ik_bone_array)
+        is_has_ik,key_stack_ik = _in_mix_SkeletonModification2DCCDIK(self.armature, tmp_ik_bone_array, rs_sub_ik)
+        if (is_has_ik):
+            rs_node_begin.append(f"modification_stack = SubResource(\"{key_stack_ik}\")")
+
+        rs_node_begin.append("")
+        
         # #========
         # # bones
         rs_bone = []
@@ -2382,10 +2253,10 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
 
             rest_to = tmp_bone["rest_to"]
             length = tmp_bone['length']
-            uparent = _get_bone_parents(self, 'Skeleton2D', bone_name)
+            uparent = _get_bone_parents(self.armature, 'Skeleton2D', bone_name)
 
             rs_bone += (
-                f"[node name=\"{bone_name}\" type=\"Bone2D\" parent=\"{uparent}\" ]",
+                f"[node name=\"{_str_name(bone_name)}\" type=\"Bone2D\" parent=\"{uparent}\" ]",
                 f"position = Vector2({tx},{ty})",
                 f"rest = Transform2D(1, 0, 0, 1, {_str_float(rest_to[0])}, {_str_float(rest_to[1])})",
                 f"auto_calculate_length_and_angle = false",
@@ -2404,6 +2275,7 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
         rs_ext.append("\n")
 
         rs_scene += rs_ext
+        rs_scene += rs_sub_ik
         rs_scene += rs_anim
         rs_scene += rs_node_begin
         rs_scene += rs_skin
