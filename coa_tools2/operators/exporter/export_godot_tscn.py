@@ -354,6 +354,48 @@ def _in_remove_base_sprite(obj):
     bpy.ops.object.mode_set(mode="OBJECT")
 
 
+def _in_get_bone_with_most_influence(armature, sprite):
+    vertex_groups = sprite.vertex_groups
+    max_weight = 0
+    bone = None
+    for v_group in vertex_groups:
+        if v_group.name in armature.data.bones:
+            total_weight = 0
+            for i, vert in enumerate(sprite.data.vertices):
+                try:
+                    total_weight += v_group.weight(vert.index)
+                except:
+                    pass
+            if total_weight > max_weight:
+                max_weight = float(total_weight)
+                bone = armature.data.bones[v_group.name]
+    return bone
+
+def get_mesh_center(sprite, scale):
+    average_vert = Vector((0, 0, 0))
+    for i, vert in enumerate(sprite.data.vertices):
+        average_vert += vert.co
+    average_vert /= len(sprite.data.vertices)
+    pos = (sprite.matrix_world @ average_vert) * scale
+    pos_2d = Vector((pos[0], -pos[2]))
+    return pos
+
+def get_sprite_offset(self, obj_name):
+    obj = bpy.data.objects[obj_name]
+    x = 1000000000000000000
+    y = -1000000000000000000
+    for vert in obj.data.vertices:
+        if vert.co[0] < x:
+            x = vert.co[0]
+        if vert.co[2] > y:
+            y = vert.co[2]
+    corner_vert = Vector((x, 0, y))
+    offset = corner_vert * self.scale_multiplier
+    offset[0] /= self.get_image_scale(obj)[0]
+    offset[2] /= self.get_image_scale(obj)[1]
+    offset_2d = [offset[0], -offset[2]]
+    return offset_2d
+
 ### get weight data
 def _in_get_bone_weight_data(self, obj, armature):
     weights = {} # {"name":,weights:[{index:,weight:}]]}
@@ -444,7 +486,7 @@ def _in_get_skin_slot(self, sprite, armature, scale, slot_data=None):
     sprite_name = str(sprite.name)
     sprite_data_name = sprite.data.name if slot_data == None else slot_data.name
 
-    zOrder = _in_get_z_order(self, sprite)
+    zOrder = _in_get_z_value(self, sprite)
 
     ### make a sprite duplicate and make it active
     if slot_data == None:
@@ -528,7 +570,24 @@ def _in_get_skin_slot(self, sprite, armature, scale, slot_data=None):
         display_data["uvs"] = _in_get_uv_data(bm)
         display_data["weights"] = _in_get_bone_weight_data(self, sprite, armature)
     else:
+        bind_bone = _in_get_bone_with_most_influence(armature, sprite)
+        sprite_center_pos = _in_get_get_mesh_center(sprite, 1.0)
+        if bind_bone != None:
+            sprite_pos_final = (
+                bind_bone.matrix_local.inverted() @ sprite_center_pos
+            ) * scale
+        else:
+            sprite_pos_final = sprite_center_pos * scale
+            
         display_data["type"] = "sprite"
+
+        display_data["x"] = -sprite_pos_final.x
+        display_data["y"] = -sprite_pos_final.y
+ 
+        display_data["bone"] = ''
+        if (bind_bone != None):
+            display_data["bone"] = bind_bone.name
+
    
     bpy.ops.object.mode_set(mode="OBJECT")
 
@@ -1542,6 +1601,7 @@ def _get_sprite_parents(armature, arm_name, sprite_name):
         return ''
     sprite = bpy.data.objects[sprite_name]
     if sprite.parent is not None:
+        print("==>", sprite_name, sprite.parent.name)
         if sprite.parent.name in armature.pose.bones:
             return _get_bone_path(armature, arm_name, sprite.parent.name)
     return arm_name
@@ -2112,6 +2172,7 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
 
         # #========
         # meshs
+        rs_sprites = []
         rs_skin = []
         tmp_uskin_array = tmp_skin_array[0]["slot"]
         for tmp_skin in tmp_uskin_array:
@@ -2124,8 +2185,8 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
                 sprite_name = display_data['name']
                 utype = display_data["type"]
 
-                tw = display_data["width"]
-                tw = display_data["height"]
+                twidth = display_data["width"]
+                theight = display_data["height"]
 
                 z_index = display_data["zOrder"]
                 tx = display_data['x']
@@ -2203,8 +2264,9 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
                         "",
                         )
                 else:
-                    sprite_parent_path = _get_sprite_parents(self, 'Skeleton2D', name)
-                    rs_skin += (
+                    bind_bone_name = display_data['bone']
+                    sprite_parent_path = _get_bone_path(self.armature, 'Skeleton2D', bind_bone_name)
+                    rs_sprites += (
                         f"[node name=\"{_str_name(name)}\" type=\"Sprite2D\" parent=\"{sprite_parent_path}\" ]",
                         f"z_index = {z_index}",
                         f"position = Vector2({tx}, {ty})",
@@ -2220,11 +2282,11 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
                         uv_y = one_atlas['y']
                         uv_w = one_atlas['width']
                         uv_h = one_atlas['height']
-                        rs_skin += (
+                        rs_sprites += (
                             f"region_enabled = true",
                             f"region_rect = Rect2({uv_x}, {uv_y}, {uv_w}, {uv_h})",
                         )
-                        rs_skin.append("")
+                        rs_sprites.append("")
                     pass
 
 
@@ -2282,6 +2344,7 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
         rs_scene += rs_node_begin
         rs_scene += rs_skin
         rs_scene += rs_bone
+        rs_scene += rs_sprites
         rs_scene += rs_player
 
         str_out_scene = '\n'.join(rs_scene)
