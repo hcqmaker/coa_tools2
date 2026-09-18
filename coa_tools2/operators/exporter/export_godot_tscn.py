@@ -624,26 +624,9 @@ def _in_get_skin_data(self, sprites, armature, scale):
     return skin_data
 
 edit_bone_matrices = {}
-def get_edit_bones(armature, context):
-    global edit_bone_matrices
-    edit_bone_matrices = {}
-    active_object = context.active_object
-    context.view_layer.objects.active = armature
-    mode = armature.mode
-    bpy.ops.object.mode_set(mode="EDIT")
 
-    for bone in armature.data.bones:
-        edit_bone = armature.data.edit_bones[bone.name]
-        edit_bone_matrices[bone.name] = edit_bone.matrix
-        # edit_bone.name = bone.name
-        # print("---->", bone.name)
-
-    bpy.ops.object.mode_set(mode=mode)
-    context.view_layer.objects.active = active_object
-    
 def _in_get_bone_transformation(armature, bone):
         global edit_bone_matrices
-        context = bpy.context
         pose_bone = armature.pose.bones[bone.name]
 
         edit_bone_matrix = edit_bone_matrices[bone.name]
@@ -657,23 +640,54 @@ def _in_get_bone_transformation(armature, bone):
         mat_local = (mat_local @ (edit_bone_matrix @ scale_mat).inverted()) @ scale_mat
         return mat_local
 
+def _in_get_bone_bvh_matrix(armature, bone):
+    pose_bone = armature.pose.bones[bone.name]
+    
+    trans = Matrix.Translation(bone.head_local)
+    itrans = Matrix.Translation(-bone.head_local)
+
+    if bone.parent:
+        parent_bone = bone.parent
+        parent_pose_bone = armature.pose.bones[bone.parent.name]
+
+        # mat_final = dbone.parent.rest_arm_mat @ dbone.parent.pose_imat @ dbone.pose_mat @ dbone.rest_arm_imat
+        # mat_final = itrans @ mat_final @ trans
+        # loc = mat_final.to_translation() + (dbone.rest_bone.head_local - dbone.parent.rest_bone.head_local)
+    
+        mat_final = parent_bone.matrix_local @ parent_pose_bone.matrix.inverted() @ pose_bone.matrix @ bone.matrix_local.inverted()
+        mat_final = itrans @ mat_final @ trans
+        loc = mat_final.to_translation() + (bone.head_local - parent_bone.head_local)
+    
+    else:
+        mat_final = pose_bone.matrix @ bone.matrix_local.inverted()
+        mat_final = itrans @ mat_final @ trans
+        loc = mat_final.to_translation() + bone.head
+
+    # if not dbone.skip_position:
+    #    file.write("%.6f %.6f %.6f " % (loc * global_scale)[:])
+
+    # rot = mat_final.to_euler(dbone.rot_order_str_reverse, dbone.prev_euler)
+    # rot = mat_final.to_euler()
+    return mat_final
+
+def _in_get_bone_matrix(armature, bone):
+    if bone.parent != None:
+        mat_local = _in_get_bone_transformation(armature,bone.parent).inverted() * _in_get_bone_transformation(armature,bone)
+    else:
+        mat_local = _in_get_bone_transformation(armature,bone)
+    return mat_local
 
 #########-------->>>-------------
 def _in_rest_bone_location(armature, pose_bone, scale):
     edit_bone = pose_bone.bone
     position = Vector((edit_bone.head_local.x, edit_bone.head_local.z))
     if edit_bone.parent:
-        slope = (
-            edit_bone.parent.head_local.x - edit_bone.parent.tail_local.x,
-            edit_bone.parent.head_local.z - edit_bone.parent.tail_local.z
-        )
-
         parent_position = Vector((edit_bone.parent.head_local.x, edit_bone.parent.head_local.z))
     else:
         parent_position = Vector((0.0, 0.0))
-    position -= parent_position
 
-    return Vector((position[0] * scale, -position[1] * scale))
+    loc = position - parent_position
+    return Vector((loc[0] * scale, -loc[1] * scale))
 
 def _in_reset_bone_scale(armature, bone, relative=True):
     pose_bone = armature.pose.bones[bone.name]
@@ -698,36 +712,64 @@ def _in_reset_bone_rotation(armature, bone, relative=True):
     degrees = round(math.degrees(bone_euler_rot.y), 2)
     return -math.radians(degrees)
 #########--------<<<-------------
-
 def _in_pose_bone_location(armature, bone, scale):
+    # 1 error
+    # mat_local = _in_get_bone_matrix(armature, bone)
+    # loc,quat,sca = mat_local.decompose()
+    # bone_pos_2d = [loc[0], -loc[2]]
+    # 1.1  ===> error
+    # pose_bone = armature.pose.bones[bone.name]
+    # bone_pos = pose_bone.location
+    # bone_pos_2d = [bone_pos[0], -bone_pos[1]]
+    # 2 not ik ===> OK
     pose_bone = armature.pose.bones[bone.name]
-    pose_bone_location = pose_bone.location
-
     if bone.parent == None:
         bone_pos = (((bone.matrix_local.to_4x4() @ pose_bone.matrix_basis).to_translation())) * scale
         bone_pos_2d = [bone_pos[0], -bone_pos[2]]
-        return bone_pos_2d
     else:
-        bone_pos = (((bone.matrix_local.to_4x4() @ pose_bone.matrix_basis).to_translation())
-            - (bone.parent.matrix_local.to_4x4().to_translation())
-        ) * scale
+        bone_pos = (((bone.matrix_local.to_4x4() @ pose_bone.matrix_basis).to_translation())- (bone.parent.matrix_local.to_4x4().to_translation())) * scale
         bone_pos_2d = [bone_pos[0], -bone_pos[2]]
+    return bone_pos_2d
 
-        return bone_pos_2d
+def _in_pose_bone_rotation(armature, bone, scale):
+    # 1
+    # mat_local = _in_get_bone_local_matrix(armature, bone)
+    # loc,quat,sca = mat_local.decompose()
+    # rot = quat.to_euler()
+    # radians = round(rot.z, 2)
+    # 2 not ik ===> OK
+    # pose_bone = armature.pose.bones[bone.name]
+    # rot = pose_bone.rotation_quaternion.to_euler() # == pose_bone.matrix_basis.decompose()[1].to_euler()
+    # degrees = round(math.degrees(rot.z), 2)
+    # 3 not ik ===> error
+    # mat_local = _in_get_bone_matrix(armature, bone)
+    # rot = mat_local.decompose()[1].to_euler()
+    # degrees = round(math.degrees(rot.y), 2)
+    # 4 not ik ===> OK
+    mat_local = _in_get_bone_bvh_matrix(armature, bone)
+    rot = mat_local.decompose()[1].to_euler()
+    degrees = round(math.degrees(rot.y), 2)
+    
+    return degrees
+    
 
-def _in_pose_bone_rotation(armature, bone, relative=True):
-    pose_bone = armature.pose.bones[bone.name]
-
-    bone_euler_rot = pose_bone.rotation_quaternion.to_euler()
-
-    degrees = round(math.degrees(bone_euler_rot.z), 2)
-    return degrees#math.radians(degrees)
-
-def _in_pose_bone_scale(armature, bone, relative=True):
-    pose_bone = armature.pose.bones[bone.name]
-
-    bone_scale = pose_bone.scale
-    bone_scale_2d = [bone_scale[1], bone_scale[1]]
+def _in_pose_bone_scale(armature, bone, scale):
+    # 1
+    # mat_local = _in_get_bone_local_matrix(armature, bone)
+    # loc,quat,sca = mat_local.decompose()
+    # bone_scale_2d = [sca[1], sca[1]]
+    # 2 not ik ===> OK
+    # pose_bone = armature.pose.bones[bone.name]
+    # bone_scale = pose_bone.scale # pose_bone.matrix_basis.decompose()[2]
+    # bone_scale_2d = [bone_scale[1], bone_scale[1]]
+    # 3 not ik ===> error ???
+    # mat_local = _in_get_bone_matrix(armature, bone)
+    # sca = mat_local.decompose()[2]
+    # bone_scale_2d = [sca[1], sca[1]]
+    # 4 not ik ===> OK
+    mat_local = _in_get_bone_bvh_matrix(armature, bone)
+    sca = mat_local.decompose()[2]
+    bone_scale_2d = [sca[0], sca[0]]
     return bone_scale_2d
 
 #########--------<<<-------------
@@ -1145,7 +1187,7 @@ def collect_armature_info(self, armature, sprites):
             bone_uses_constraints[pbone.name] = check_if_bone_uses_constraints(pbone)
                     
             edit_bone = armature.data.edit_bones[bone.name]
-            edit_bone_matrices[bone.name] = edit_bone.matrix
+            edit_bone_matrices[bone.name] = edit_bone.matrix.to_4x4()
     
         bpy.ops.object.mode_set(mode=mode)
         context.view_layer.objects.active = active_object
@@ -1176,8 +1218,8 @@ def _in_get_animation_data(self, sprite_object, armature):
     animations = []
 
 
-    tmp_anims = ["Idle","Run","Color_down"]
-    tmp_bones = ['Root']
+    tmp_anims = ["Idle","Run","Color_down","Attack"]
+    tmp_bones = ['Bone_M_02']
 
     # tmp_excludes = ["NO ACTION","Restpose"]
     tmp_excludes = ["NO ACTION"]
@@ -1399,31 +1441,33 @@ def _in_get_animation_data(self, sprite_object, armature):
                             bone_pos = (_in_pose_bone_location(armature, bone, scale))
 
                             one_frame = {}
-                            one_frame["duration"] = tt_pos_duration
+                            one_frame["duration"] = frame#tt_pos_duration
                             one_frame["curve"] = ([0.5, 0, 0.5, 1] if bake_anim == False else [0, 0, 1, 1])
                             one_frame["x"] = round(bone_pos[0], 2)
                             one_frame["y"] = round(bone_pos[1], 2)
 
-                            # if anim.name in tmp_anims and bone.name in tmp_bones:
-                            #     print("===>pos:", bone.name, frame, one_frame["x"], one_frame["y"])
+                            if anim.name in tmp_anims and bone.name in tmp_bones:
+                                print("===>pos:", bone.name, frame, one_frame["x"], one_frame["y"])
 
                             
-                            if frame in [0, anim.frame_end] or (kv_bkd[bone.name]["last_pos"] != [one_frame["x"], one_frame["y"]]):
-                                ### if previous keyframe differs and keyframe duration is greater 1 add an extra keyframe inbetween
-                                if kv_bkd[bone.name]["pos_duration"] > 1 and kv_bkd[bone.name]["last_pos"] != [one_frame["x"],one_frame["y"],]:
-                                    if const_len > 0 or in_ik_chain:
-                                        kv_tmp = {} # keyframe_data_last
-                                        kv_tmp["duration"] = (kv_bkd[bone.name]["pos_duration"]- 1)
-                                        kv_tmp["curve"] = ([0.5, 0, 0.5, 1] if bake_anim == False else [0, 0, 1, 1])
-                                        kv_tmp["x"] = (kv_bkd[bone.name]["last_pos"][0])
-                                        kv_tmp["y"] = (kv_bkd[bone.name]["last_pos"][1])
-                                        anim_data["bone"][j]["translateFrame"].insert(0, kv_tmp)
+                            # if frame in [0, anim.frame_end] or (kv_bkd[bone.name]["last_pos"] != [one_frame["x"], one_frame["y"]]):
+                            ### if previous keyframe differs and keyframe duration is greater 1 add an extra keyframe inbetween
+                            
+                            # XXX need to motify 好像不需要的样子，只要有关键帧，或者是IK，或者是烘焙，都需要直接设置的吧......
+                            if tt_pos_duration > 1 and kv_bkd[bone.name]["last_pos"] != [one_frame["x"],one_frame["y"]]:
+                                if const_len > 0 or in_ik_chain:
+                                    kv_tmp = {} # keyframe_data_last
+                                    kv_tmp["duration"] = (tt_pos_duration - 1)
+                                    kv_tmp["curve"] = ([0.5, 0, 0.5, 1] if bake_anim == False else [0, 0, 1, 1])
+                                    kv_tmp["x"] = (kv_bkd[bone.name]["last_pos"][0])
+                                    kv_tmp["y"] = (kv_bkd[bone.name]["last_pos"][1])
+                                    anim_data["bone"][j]["translateFrame"].insert(0, kv_tmp)
 
-                                        one_frame["duration"] = 1
+                                    one_frame["duration"] = 1
 
-                                anim_data["bone"][j]["translateFrame"].insert(0, one_frame)
-                                # tt_pos_duration = 0
-                                kv_bkd[bone.name]["last_pos"] = [one_frame["x"],one_frame["y"],]
+                            anim_data["bone"][j]["translateFrame"].insert(0, one_frame)
+                            # tt_pos_duration = 0
+                            kv_bkd[bone.name]["last_pos"] = [one_frame["x"],one_frame["y"],]
 
                         ### bone rotation
                         if (
@@ -1437,7 +1481,7 @@ def _in_get_animation_data(self, sprite_object, armature):
                             # bone_rot = (_in_pose_bone_rotation(armature, bone, relative) - self.armature_restpose[bone.name]["bone_rot"])
          
                             one_frame = {}
-                            one_frame["duration"] = tt_rot_duration
+                            one_frame["duration"] = frame#tt_rot_duration
                             one_frame["curve"] = ([0.5, 0, 0.5, 1] if bake_anim == False else [0, 0, 1, 1])
                             one_frame["rotate"] = round(bone_rot, 2)
 
@@ -1445,23 +1489,23 @@ def _in_get_animation_data(self, sprite_object, armature):
                             #    print("===>rot:", bone.name, frame, one_frame["rotate"])
 
         
-                            if (frame in [0, anim.frame_end]) or (kv_bkd[bone.name]["last_rot"] != one_frame["rotate"]):
-                                ### if previous keyframe differs and keyframe duration is greater 1 add an extra keyframe inbetween
-                                if tt_rot_duration > 1 and (kv_bkd[bone.name]["last_rot"] != one_frame["rotate"]):
-                                    if const_len > 0 or in_ik_chain:
-                                        kv_tmp = {}
-                                        kv_tmp["duration"] = (tt_rot_duration- 1)
-                                        kv_tmp["curve"] = ([0.5, 0, 0.5, 1] if bake_anim == False else [0, 0, 1, 1])
-                                        kv_tmp["rotate"] = round(kv_bkd[bone.name]["last_rot"],2,)
-                                        anim_data["bone"][j]["rotateFrame"].insert(0, kv_tmp)
+                            # if (frame in [0, anim.frame_end]) or (kv_bkd[bone.name]["last_rot"] != one_frame["rotate"]):
+                            ### if previous keyframe differs and keyframe duration is greater 1 add an extra keyframe inbetween
+                            if tt_rot_duration > 1 and (kv_bkd[bone.name]["last_rot"] != one_frame["rotate"]):
+                                if const_len > 0 or in_ik_chain:
+                                    kv_tmp = {}
+                                    kv_tmp["duration"] = (tt_rot_duration- 1)
+                                    kv_tmp["curve"] = ([0.5, 0, 0.5, 1] if bake_anim == False else [0, 0, 1, 1])
+                                    kv_tmp["rotate"] = round(kv_bkd[bone.name]["last_rot"],2,)
+                                    anim_data["bone"][j]["rotateFrame"].insert(0, kv_tmp)
 
-                                        one_frame["duration"] = 1
+                                    one_frame["duration"] = 1
 
-                                keyframe_rotate = one_frame["rotate"]
-                                one_frame["rotate"] = round(math.radians(one_frame["rotate"]), 2)
-                                anim_data["bone"][j]["rotateFrame"].insert(0, one_frame)
-                                # tt_rot_duration = 0
-                                kv_bkd[bone.name]["last_rot"] = (keyframe_rotate)
+                            keyframe_rotate = one_frame["rotate"]
+                            one_frame["rotate"] = round(math.radians(one_frame["rotate"]), 2)
+                            anim_data["bone"][j]["rotateFrame"].insert(0, one_frame)
+                            # tt_rot_duration = 0
+                            kv_bkd[bone.name]["last_rot"] = (keyframe_rotate)
 
                         ### bone scale
                         if (
@@ -1473,28 +1517,34 @@ def _in_get_animation_data(self, sprite_object, armature):
                         ):
                             bone_scale = _in_pose_bone_scale(armature, bone, relative)
 
+                            # if (bone.name == 'Bone_M'):
+                            #     print("==>", bone.name, frame, bone_scale)
+
                             one_frame = {}
-                            one_frame["duration"] = kv_bkd[bone.name]["scale_duration"]
+                            one_frame["duration"] = frame#tt_scale_duration
                             one_frame["curve"] = ([0.5, 0, 0.5, 1] if bake_anim == False else [0, 0, 1, 1])
                             one_frame["x"] = round(bone_scale[0], 2)
                             one_frame["y"] = round(bone_scale[1], 2)
 
-                            if (frame in [0, anim.frame_end]) or ( kv_bkd[bone.name]["last_scale"]!= [one_frame["x"], one_frame["y"]]):
-                                ### if previous keyframe differs and keyframe duration is greater 1 add an extra keyframe inbetween
-                                if kv_bkd[bone.name]["scale_duration"] > 1 and (kv_bkd[bone.name]["last_scale"]!= [one_frame["x"], one_frame["y"]]):
-                                    if const_len > 0 or in_ik_chain:
-                                        kv_tmp = {}
-                                        kv_tmp["duration"] = (kv_bkd[bone.name]["scale_duration"]- 1)
-                                        kv_tmp["curve"] = ([0.5, 0, 0.5, 1] if bake_anim == False else [0, 0, 1, 1])
-                                        kv_tmp["x"] = (kv_bkd[bone.name]["last_scale"][0])
-                                        kv_tmp["y"] = (kv_bkd[bone.name]["last_scale"][1])
-                                        anim_data["bone"][j]["scaleFrame"].insert(0, kv_tmp)
+                            # if (kv_bkd[bone.name]["last_scale"] != [one_frame["x"], one_frame["y"]]):
+                            # if (frame in [0, anim.frame_end]) or ( kv_bkd[bone.name]["last_scale"]!= [one_frame["x"], one_frame["y"]]):
+                            ### if previous keyframe differs and keyframe duration is greater 1 add an extra keyframe inbetween
+                            if tt_scale_duration > 1 and (kv_bkd[bone.name]["last_scale"] != [one_frame["x"], one_frame["y"]]):
+                                if const_len > 0 or in_ik_chain:
+                                    kv_tmp = {}
+                                    kv_tmp["duration"] = frame#(tt_scale_duration - 1)
+                                    kv_tmp["curve"] = ([0.5, 0, 0.5, 1] if bake_anim == False else [0, 0, 1, 1])
+                                    kv_tmp["x"] = (kv_bkd[bone.name]["last_scale"][0])
+                                    kv_tmp["y"] = (kv_bkd[bone.name]["last_scale"][1])
+                                    anim_data["bone"][j]["scaleFrame"].insert(0, kv_tmp)
 
-                                        one_frame["duration"] = 1
+                                    one_frame["duration"] = 1
 
-                                anim_data["bone"][j]["scaleFrame"].insert(0, one_frame)
-                                # tt_scale_duration = 0
-                                kv_bkd[bone.name]["last_scale"] = [one_frame["x"], one_frame["y"],]
+                            # if (bone.name == 'Bone_M'):
+                            #     print("=xx=>", bone.name, frame, bone_scale, one_frame["duration"])
+                            anim_data["bone"][j]["scaleFrame"].insert(0, one_frame)
+                            # tt_scale_duration = 0
+                            kv_bkd[bone.name]["last_scale"] = [one_frame["x"], one_frame["y"]]
 
                 #### HANDLE FFD Transformations (Blender Shapekeys)
                 j = 0
@@ -2046,6 +2096,7 @@ class COATOOLS2_OT_GodotTscnExport(bpy.types.Operator):
                     bone_rot_dict[ubone_name] = {"path":bone_path+":rotation", "times":[], "transitions":[],"values":[]}
                     bone_sca_dict[ubone_name] = {"path":bone_path+":scale", "times":[], "transitions":[],"values":[]}
 
+                print("translateFrames===>",ubone_name, len(translateFrames))
                 for tf in translateFrames:
                     duration = tf["duration"]
                     tx = tf["x"]
