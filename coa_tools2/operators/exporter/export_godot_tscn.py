@@ -1300,7 +1300,7 @@ def _in_get_animation_data(self, sprite_object, armature):
                         bone_rot_degree = round(math.degrees(rot.y), 2)
 
                         sca = mat_final.decompose()[2]
-                        bone_scale_2d = [sca[0], sca[0]]
+                        bone_scale_2d = [sca[0], sca[2]]
 
 
                         # if not dbone.skip_position:
